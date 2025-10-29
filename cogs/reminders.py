@@ -48,10 +48,10 @@ class Reminders(commands.Cog):
         # ✅ Emojis solo para el encabezado del asignado
         emojis = {
             "Ronald Vargas": "🔥",
-            "Isabella": "🌱",
-            "Sofía": "🌻",
+            "isabella Lantieri": "🌱",
+            "Sofía Lantieri": "🌻",
             "Roggert Bernal": "☀️",
-            "Camila": "🩷",
+            "Camila Torres": "🩷",
             "Sin asignar": "👤"
         }
 
