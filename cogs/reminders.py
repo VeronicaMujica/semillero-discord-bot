@@ -44,24 +44,29 @@ class Reminders(commands.Cog):
             print("Error Webhook:", e)
             return web.json_response({"error": str(e)}, status=500)
 
-    def format_message(self, tasks):
-        grouped = {}
+def format_message(self, tasks):
+    if not tasks:
+        return "✅ No hay tareas para hoy"
 
-        for t in tasks:
-            assignee = t.get("assignees", "Sin asignar")
-            grouped.setdefault(assignee, []).append(t)
+    grouped = {}
 
-        text = "👋 **¡Buenos días!**\nEstas son tus tareas del día de hoy:\n\n"
+    # ✅ Tasks ya llegan una por request → juntaremos todo
+    for t in tasks:
+        assignee = t.get("assignees", "Sin asignar")
+        grouped.setdefault(assignee, []).append(t)
 
-        for assignee, tasks in grouped.items():
-            text += f"### 👤 {assignee}\n"
-            for t in tasks:
-                nombre = t.get("name", "Sin nombre")
-                estado = t.get("status", "Sin estado")
-                text += f"- **{nombre}** _(Estado: {estado})_\n"
-            text += "\n"
+    lines = []
+    for assignee, items in grouped.items():
+        lines.append(f"👤 **{assignee}**")
+        for task in items:
+            nombre = task.get("name", "Sin nombre")
+            estado = task.get("status", "Sin estado")
+            lines.append(f"- {nombre} _(Estado: {estado})_")
+        lines.append("")  # salto
 
-        return text
+    # ✅ Encabezado solo una vez
+    return "👋 **¡Buenos días!**\nEstas son tus tareas del día de hoy:\n\n" + "\n".join(lines)
+
 
 async def setup(bot):
     reminders = Reminders(bot)
