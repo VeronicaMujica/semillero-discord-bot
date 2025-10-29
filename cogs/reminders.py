@@ -48,7 +48,7 @@ class Reminders(commands.Cog):
         # ✅ Emojis solo para el encabezado del asignado
         emojis = {
             "Ronald Vargas": "🔥",
-            "isabella Lantieri": "🌱",
+            "Isabella Lantieri": "🌱",
             "Sofía Lantieri": "🌻",
             "Roggert Bernal": "☀️",
             "Camila Torres": "🩷",
@@ -77,7 +77,7 @@ class Reminders(commands.Cog):
             emoji = emojis.get(assignee, "👤")
             text += f"{emoji} **{assignee}**\n"
 
-            # 🔹 Mostrar tareas sin emojis ni barras
+            # 🔹 Mostrar tareas sin emojis repetidos ni barras
             for task in items:
                 nombre = task.get("name", "Sin nombre")
                 estado = task.get("status", "Sin estado")
