@@ -3,6 +3,7 @@ from discord.ext import commands
 from aiohttp import web
 import json
 import os
+import re  
 
 # ✅ Conversion robusta del canal
 try:
@@ -45,7 +46,6 @@ class Reminders(commands.Cog):
             return web.json_response({"error": str(e)}, status=500)
 
     def format_message(self, tasks):
-        # ✅ Emojis solo para el encabezado del asignado
         emojis = {
             "Ronald Vargas": "🔥",
             "Isabella Lantieri": "🌱",
@@ -57,11 +57,9 @@ class Reminders(commands.Cog):
 
         grouped = {}
 
-        # Agrupar tareas por asignado
         for t in tasks:
             assignee = t.get("assignees")
 
-            # Manejo flexible: puede venir como lista, string o None
             if isinstance(assignee, list) and assignee:
                 assignee = assignee[0]
             elif not assignee:
@@ -69,18 +67,20 @@ class Reminders(commands.Cog):
 
             grouped.setdefault(assignee, []).append(t)
 
-        # ✅ Saludo inicial
         text = "👋 **¡Buenos días!**\nEstas son tus tareas del día de hoy:\n\n"
 
-        # Recorrer cada persona
         for assignee, items in grouped.items():
             emoji = emojis.get(assignee, "👤")
             text += f"{emoji} **{assignee}**\n"
 
-            # 🔹 Mostrar tareas sin emojis repetidos ni barras
             for task in items:
                 nombre = task.get("name", "Sin nombre")
                 estado = task.get("status", "Sin estado")
+
+                # 🧹 Limpieza: quita emojis, barras y espacios extra
+                nombre = re.sub(r'[^\w\sÁÉÍÓÚáéíóúñÑüÜ/().,-]', '', nombre)
+                nombre = nombre.replace('|', '').strip()
+
                 text += f"- {nombre} (Estado: {estado})\n"
 
             text += "\n"
