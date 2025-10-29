@@ -59,7 +59,13 @@ class Reminders(commands.Cog):
 
         # Agrupar tareas por asignado
         for t in tasks:
-            assignee = t.get("assignees", "Sin asignar")
+            # Si el campo 'assignees' es lista, toma el primero o marca como 'Sin asignar'
+            assignee = t.get("assignees")
+            if isinstance(assignee, list) and assignee:
+                assignee = assignee[0]
+            elif not assignee:
+                assignee = "Sin asignar"
+
             grouped.setdefault(assignee, []).append(t)
 
         # ✅ Solo un saludo al inicio
@@ -70,16 +76,15 @@ class Reminders(commands.Cog):
             emoji = emojis.get(assignee, "👤")
             text += f"### {emoji} {assignee}\n"
 
-            # Listar tareas sin emojis, guiones ni separadores
+            # 🔹 Mostrar solo el nombre de la tarea y su estado, sin emojis
             for task in items:
                 nombre = task.get("name", "Sin nombre")
                 estado = task.get("status", "Sin estado")
-                text += f"{nombre} (Estado: {estado})\n"
+                text += f"- {nombre} *(Estado: {estado})*\n"
 
             text += "\n"
 
         return text.strip()
-
 
 async def setup(bot):
     reminders = Reminders(bot)
