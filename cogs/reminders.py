@@ -44,48 +44,48 @@ class Reminders(commands.Cog):
             print("Error Webhook:", e)
             return web.json_response({"error": str(e)}, status=500)
 
-def format_message(self, tasks):
-    # ✅ Emojis solo para el encabezado del asignado
-    emojis = {
-        "Ronald Vargas": "🔥",
-        "Isabella": "🌱",
-        "Sofía": "🌻",
-        "Roggert Bernal": "☀️",
-        "Camila": "🩷",
-        "Sin asignar": "👤"
-    }
+    def format_message(self, tasks):
+        # ✅ Emojis solo para el encabezado del asignado
+        emojis = {
+            "Ronald Vargas": "🔥",
+            "Isabella": "🌱",
+            "Sofía": "🌻",
+            "Roggert Bernal": "☀️",
+            "Camila": "🩷",
+            "Sin asignar": "👤"
+        }
 
-    grouped = {}
+        grouped = {}
 
-    # Agrupar tareas por asignado
-    for t in tasks:
-        assignee = t.get("assignees")
+        # Agrupar tareas por asignado
+        for t in tasks:
+            assignee = t.get("assignees")
 
-        # Manejo flexible: puede venir como lista, string o None
-        if isinstance(assignee, list) and assignee:
-            assignee = assignee[0]
-        elif not assignee:
-            assignee = "Sin asignar"
+            # Manejo flexible: puede venir como lista, string o None
+            if isinstance(assignee, list) and assignee:
+                assignee = assignee[0]
+            elif not assignee:
+                assignee = "Sin asignar"
 
-        grouped.setdefault(assignee, []).append(t)
+            grouped.setdefault(assignee, []).append(t)
 
-    # ✅ Saludo inicial
-    text = "👋 **¡Buenos días!**\nEstas son tus tareas del día de hoy:\n\n"
+        # ✅ Saludo inicial
+        text = "👋 **¡Buenos días!**\nEstas son tus tareas del día de hoy:\n\n"
 
-    # Recorrer cada persona
-    for assignee, items in grouped.items():
-        emoji = emojis.get(assignee, "👤")
-        text += f"{emoji} **{assignee}**\n"
+        # Recorrer cada persona
+        for assignee, items in grouped.items():
+            emoji = emojis.get(assignee, "👤")
+            text += f"{emoji} **{assignee}**\n"
 
-        # 🔹 Mostrar tareas sin emojis ni barras
-        for task in items:
-            nombre = task.get("name", "Sin nombre")
-            estado = task.get("status", "Sin estado")
-            text += f"- {nombre} (Estado: {estado})\n"
+            # 🔹 Mostrar tareas sin emojis ni barras
+            for task in items:
+                nombre = task.get("name", "Sin nombre")
+                estado = task.get("status", "Sin estado")
+                text += f"- {nombre} (Estado: {estado})\n"
 
-        text += "\n"
+            text += "\n"
 
-    return text.strip()
+        return text.strip()
 
 async def setup(bot):
     reminders = Reminders(bot)
