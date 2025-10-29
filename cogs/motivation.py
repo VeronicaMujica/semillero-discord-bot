@@ -37,8 +37,7 @@ TZ_ARG = timezone("America/Argentina/Buenos_Aires")
 HORA_MANIANA = {"hour": 8, "minute": 0}
 HORA_TARDE = {"hour": 16, "minute": 0}
 
-# ⚙️ Canal donde el bot enviará los mensajes
-CHANNEL_ID = 1320416281492717601  # Reemplazar por el canal real
+CHANNEL_ID = 1320416281492717601  # Canal del equipo
 
 class MotivationCog(commands.Cog):
     """Cog de motivación diaria para el equipo Semillero 🌱"""
@@ -46,62 +45,100 @@ class MotivationCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.scheduler = AsyncIOScheduler(timezone=TZ_ARG)
-        # 🕗 Tareas programadas
+        self.last_sent = {"morning": None, "evening": None}  # Protección de duplicados
+
+        # Programación de mensajes
         self.scheduler.add_job(self.enviar_mensaje_mananero, "cron", **HORA_MANIANA)
         self.scheduler.add_job(self.enviar_mensaje_tarde, "cron", **HORA_TARDE)
         self.scheduler.start()
         print("🗓️ Scheduler de motivación iniciado (8AM / 16PM ARG)")
 
+    # --- FUNCIONES PRINCIPALES ---
+
     async def enviar_mensaje_mananero(self):
-        """Mensaje motivacional diario con GIF (8 AM ARG)"""
-        await self._enviar_mensaje(
-            random.choice(FRASES_MANANA),
-            random.choice(GIFS_MANIANA)
-        )
+        """Mensaje motivacional diario (8 AM ARG)"""
+        ahora = datetime.datetime.now(TZ_ARG)
+        dia_semana = ahora.strftime("%A").lower()
+        hoy = ahora.date()
+
+        # Protección de duplicados
+        if self.last_sent["morning"] == hoy:
+            print("🕗 Ya se envió el mensaje matutino hoy.")
+            return
+        self.last_sent["morning"] = hoy
+
+        # Modo descanso
+        if dia_semana in ["saturday", "sunday"]:
+            await self._enviar_mensaje_descanso()
+            return
+
+        # Personalización según día (solo lunes y viernes)
+        if dia_semana == "monday":
+            mensaje = "💪 Lunes de siembra: esta semana puede florecer algo increíble. 🌱"
+        elif dia_semana == "friday":
+            mensaje = "🎉 ¡Viernes, equipo! Hoy celebramos lo que creció esta semana. 🌾"
+        else:
+            mensaje = random.choice(FRASES_MANANA)
+
+        try:
+            canal = await self.bot.fetch_channel(CHANNEL_ID)
+            gif = random.choice(GIFS_MANIANA)
+            await canal.send(f"{mensaje}\n\nReacciona con tu mood de hoy 👇")
+            await canal.send(gif)
+            print(f"[Motivation] ✅ Mensaje de mañana enviado a {ahora}")
+        except Exception as e:
+            print(f"❌ Error en enviar_mensaje_mananero: {e}")
 
     async def enviar_mensaje_tarde(self):
-        """Frase inspiradora e interactiva (tarde)"""
+        """Mensaje de la tarde (simple y relajado)"""
+        ahora = datetime.datetime.now(TZ_ARG)
+        hoy = ahora.date()
+
+        # Protección de duplicados
+        if self.last_sent["evening"] == hoy:
+            print("🕗 Ya se envió el mensaje de la tarde hoy.")
+            return
+        self.last_sent["evening"] = hoy
+
+        # No enviar en fines de semana
+        dia_semana = ahora.strftime("%A").lower()
+        if dia_semana in ["saturday", "sunday"]:
+            print("🌿 Fin de semana, no se envía mensaje de tarde.")
+            return
+
         try:
             canal = await self.bot.fetch_channel(CHANNEL_ID)
             frase = random.choice(FRASES_TARDE)
-            mensaje = await canal.send(frase + "\n💬 ¿Qué fue lo más lindo que hiciste hoy?")
-            # Reacciones interactivas
-            for emoji in ["🌱", "💚", "🔥", "😌"]:
-                await mensaje.add_reaction(emoji)
+            await canal.send(frase)
+            print(f"[Motivation] ✅ Mensaje de tarde enviado a {ahora}")
         except Exception as e:
             print(f"❌ Error en enviar_mensaje_tarde: {e}")
 
-    async def _enviar_mensaje(self, frase, gif_url):
+    async def _enviar_mensaje_descanso(self):
+        """Mensaje especial para fines de semana"""
         try:
             canal = await self.bot.fetch_channel(CHANNEL_ID)
-            await canal.send(frase)
-            await canal.send(gif_url)
-            print(f"[Motivation] ✅ Mensaje enviado a {datetime.datetime.now(TZ_ARG)}")
+            await canal.send("🌿 Es fin de semana, equipo. Hoy la tarea es descansar y recargar energía 🌞")
+            print(f"[Motivation] 🌿 Mensaje de descanso enviado correctamente.")
         except Exception as e:
-            print(f"❌ Error al enviar mensaje motivacional: {e}")
+            print(f"❌ Error al enviar mensaje de descanso: {e}")
 
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        """Responder a menciones o mensajes dirigidos al bot"""
-        if message.author.bot:
-            return
-
-        contenido = message.content.lower()
-        mencionado = self.bot.user.mentioned_in(message)
-        respuesta = random.choice(RESPUESTAS_SIMPLIFICADAS)
-
-        if mencionado or any(palabra in contenido for palabra in ["bot", "semillero", "hola", "gracias"]):
-            await message.channel.send(respuesta)
-
-    # Comando manual para probar el mensaje
+    # --- EVENTOS Y REACCIONES ---
+    
+    # --- COMANDO MANUAL ---
     @commands.command(name="test_motivation")
     async def test_motivation(self, ctx):
         """Permite probar manualmente el mensaje motivacional"""
-        await self._enviar_mensaje(
-            random.choice(FRASES_MANANA),
-            random.choice(GIFS_MANIANA)
-        )
+        ahora = datetime.datetime.now(TZ_ARG)
+        dia_semana = ahora.strftime("%A").lower()
+
+        if dia_semana in ["saturday", "sunday"]:
+            await self._enviar_mensaje_descanso()
+        else:
+            await self.enviar_mensaje_mananero()
+
         await ctx.send("🌱 Mensaje motivacional de prueba enviado correctamente.")
 
+# --- SETUP DEL COG ---
 async def setup(bot):
     await bot.add_cog(MotivationCog(bot))
