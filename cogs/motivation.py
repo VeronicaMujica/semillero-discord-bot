@@ -25,13 +25,6 @@ FRASES_TARDE = [
     "🔥 Lo estás haciendo bien. Aunque nadie lo vea, estás creciendo."
 ]
 
-RESPUESTAS_SIMPLIFICADAS = [
-    "💚 Qué lindo que me hables 🌱",
-    "✨ Te leo y sonrío 😌",
-    "🌿 Estoy acá, siempre sembrando buena energía 💫",
-    "🌞 ¡Vamos equipo, que esto florece! 🌱"
-]
-
 # --- CONFIGURACIÓN DE HORARIOS ---
 TZ_ARG = timezone("America/Argentina/Buenos_Aires")
 HORA_MANIANA = {"hour": 8, "minute": 0}
