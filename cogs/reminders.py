@@ -45,28 +45,41 @@ class Reminders(commands.Cog):
             return web.json_response({"error": str(e)}, status=500)
 
     def format_message(self, tasks):
-        if not tasks:
-            return "✅ No hay tareas para hoy"
+
+        # ✅ Mapeo de emojis por asignado
+        emojis = {
+            "Ronald Vargas": "🔥",
+            "Isabella": "🌱",
+            "Sofía": "🌻",
+            "Roggert Bernal": "☀️",
+            "Camila": "🩷"
+        }
 
         grouped = {}
 
-        # ✅ Tasks ya llegan una por request → juntaremos todo
         for t in tasks:
             assignee = t.get("assignees", "Sin asignar")
             grouped.setdefault(assignee, []).append(t)
 
-        lines = []
+        # ✅ Solo un saludo al inicio
+        text = "👋 **¡Buenos días!**\nEstas son tus tareas del día de hoy:\n\n"
+
         for assignee, items in grouped.items():
-            lines.append(f"👤 **{assignee}**")
+            # ✅ Elegir emoji correctamente
+            emoji = emojis.get(assignee, "👤")
+
+            # ✅ Título por persona
+            text += f"### {emoji} {assignee}\n"
+
+            # ✅ Listar tareas
             for task in items:
                 nombre = task.get("name", "Sin nombre")
                 estado = task.get("status", "Sin estado")
-                lines.append(f"- {nombre} _(Estado: {estado})_")
-            lines.append("")  # salto
+                text += f"- **{nombre}** _(Estado: {estado})_\n"
 
-        # ✅ Encabezado solo una vez
-        return "👋 **¡Buenos días!**\nEstas son tus tareas del día de hoy:\n\n" + "\n".join(lines)
+            text += "\n"
 
+        return text.strip()
 
 async def setup(bot):
     reminders = Reminders(bot)
