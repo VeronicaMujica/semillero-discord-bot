@@ -3,7 +3,9 @@ from discord.ext import commands
 from aiohttp import web
 import json
 import os
-import re  
+from datetime import datetime
+from zoneinfo import ZoneInfo 
+import re
 
 # ✅ Conversion robusta del canal
 try:
@@ -43,7 +45,7 @@ class Reminders(commands.Cog):
 
         except Exception as e:
             print("Error Webhook:", e)
-            return web.json_response({"error": str(e)}, status=500)
+            return web.json_response({"error": str(e)}, status=500) # 👈 Añadimos esto arriba junto con tus imports
 
     def format_message(self, tasks):
         emojis = {
@@ -67,7 +69,22 @@ class Reminders(commands.Cog):
 
             grouped.setdefault(assignee, []).append(t)
 
-        text = "👋 **¡Buenos días!**\nEstas son tus tareas del día de hoy:\n\n"
+        # 🕒 Hora actual en Argentina
+        now = datetime.now(ZoneInfo("America/Argentina/Buenos_Aires"))
+        hour = now.hour
+
+        # 💬 Saludo dinámico según hora local
+        if 5 <= hour < 12:
+            saludo = "☀️ **¡Buenos días!**"
+            intro = "Estas son tus tareas del día de hoy:"
+        elif 12 <= hour < 18:
+            saludo = "🌇 **¡Buenas tardes!**"
+            intro = "Aquí va un recordatorio de tus tareas pendientes:"
+        else:
+            saludo = "🌙 **¡Buenas noches!**"
+            intro = "Un último repaso de tus tareas del día:"
+
+        text = f"👋 {saludo}\n{intro}\n\n"
 
         for assignee, items in grouped.items():
             emoji = emojis.get(assignee, "👤")
@@ -77,7 +94,7 @@ class Reminders(commands.Cog):
                 nombre = task.get("name", "Sin nombre")
                 estado = task.get("status", "Sin estado")
 
-                # 🧹 Limpieza: quita emojis, barras y espacios extra
+                # 🧹 Limpieza de nombre
                 nombre = re.sub(r'[^\w\sÁÉÍÓÚáéíóúñÑüÜ/().,-]', '', nombre)
                 nombre = nombre.replace('|', '').strip()
 
