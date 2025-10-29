@@ -45,7 +45,7 @@ class Reminders(commands.Cog):
             return web.json_response({"error": str(e)}, status=500)
 
     def format_message(self, tasks):
-        # ✅ Mapeo de emojis solo para encabezados de persona
+        # ✅ Mapeo de emojis solo para el encabezado del asignado
         emojis = {
             "Ronald Vargas": "🔥",
             "Isabella": "🌱",
@@ -70,7 +70,7 @@ class Reminders(commands.Cog):
             emoji = emojis.get(assignee, "👤")
             text += f"### {emoji} {assignee}\n"
 
-            # Listar tareas sin emojis ni “|”
+            # Listar tareas sin emojis, guiones ni separadores
             for task in items:
                 nombre = task.get("name", "Sin nombre")
                 estado = task.get("status", "Sin estado")
@@ -79,6 +79,7 @@ class Reminders(commands.Cog):
             text += "\n"
 
         return text.strip()
+
 
 async def setup(bot):
     reminders = Reminders(bot)
