@@ -124,7 +124,7 @@ class MotivationCog(commands.Cog):
             print(f"❌ Error al enviar mensaje de descanso: {e}")
 
     # --- EVENTOS Y REACCIONES ---
-    
+
     # --- COMANDO MANUAL ---
     @commands.command(name="test_motivation")
     async def test_motivation(self, ctx):
