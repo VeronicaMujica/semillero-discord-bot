@@ -121,9 +121,20 @@ class Reminders(commands.Cog):
             text += "\n"
 
         return text.strip()
+    
+    @commands.command(name="mensaje")
+    async def mensaje_clickup(self, ctx):
+        await ctx.send(
+            "✅ Ya están subidas las tareas a ClickUp chicos.\n"
+            "Por favor revisen si todo está correcto 🙌\n"
+            "_A veces me puedo equivocar 😅_"
+        )
 
 async def setup(bot):
     reminders = Reminders(bot)
+
+    # Registrar los comandos del Cog
+    await bot.add_cog(reminders)
 
     runner = web.AppRunner(reminders.app)
     await runner.setup()
