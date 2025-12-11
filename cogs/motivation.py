@@ -52,7 +52,7 @@ TZ_ARG = timezone("America/Argentina/Buenos_Aires")
 
 HORA_MANIANA = {"hour": 8, "minute": 0}
 HORA_TARDE = {"hour": 16, "minute": 0}
-HORA_SALUDO_INICIAL = {"hour": 8, "minute": 20}
+HORA_SALUDO_INICIAL = {"hour": 10, "minute": 21}
 
 CHANNEL_ID = 1320416281492717601 # Canal del equipo
 
