@@ -141,5 +141,3 @@ async def setup(bot):
 
     site = web.TCPSite(runner, "0.0.0.0", 4000)
     await site.start()
-
-    await bot.add_cog(reminders)
