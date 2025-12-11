@@ -13,20 +13,14 @@ try:
 except:
     CHANNEL_ID = 0
 
-# ✅ IDs de Rochi y Cam (los mismos que usabas en MotivationCog)
-ROCHI_ID = 749116237472071772
-CAM_ID = 737370380775456798
-
-
 class Reminders(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.app = web.Application()
         self.setup_routes()
 
-        # ✅ Iniciamos los loops diarios
+        # ✅ Iniciamos el recordatorio diario
         self.daily_clickup_reminder.start()
-        self.daily_saludo_inicial.start()
 
     def setup_routes(self):
         self.app.router.add_post("/reminders", self.receive_reminders)
@@ -55,7 +49,7 @@ class Reminders(commands.Cog):
             print("Error Webhook:", e)
             return web.json_response({"error": str(e)}, status=500)
 
-    # ✅ Recordatorio diario ClickUp — 9:30 ARG
+    # ✅ ✅ ✅ NUEVO: Recordatorio diario ClickUp — 9:30 ARG
     @tasks.loop(minutes=1)
     async def daily_clickup_reminder(self):
         now = datetime.now(ZoneInfo("America/Argentina/Buenos_Aires"))
@@ -73,45 +67,6 @@ class Reminders(commands.Cog):
     @daily_clickup_reminder.before_loop
     async def before_daily(self):
         await self.bot.wait_until_ready()
-
-    # ✅ NUEVO: saludo inicial diario — 8:20 ARG
-    @tasks.loop(minutes=1)
-    async def daily_saludo_inicial(self):
-        now = datetime.now(ZoneInfo("America/Argentina/Buenos_Aires"))
-        target = time(8, 48)  # 👈 acá cambias si querés otro horario
-
-        if now.hour == target.hour and now.minute == target.minute:
-            await self.saludo_inicial()
-
-    @daily_saludo_inicial.before_loop
-    async def before_daily_saludo(self):
-        await self.bot.wait_until_ready()
-
-    # ✅ Función reutilizable de saludo (la que me pasaste)
-    async def saludo_inicial(self):
-        """Mensaje inicial diario (08:20) con bienvenida a nuevas integrantes."""
-        try:
-            canal = self.bot.get_channel(CHANNEL_ID)
-            if not canal:
-                # Fallback por si get_channel devuelve None
-                canal = await self.bot.fetch_channel(CHANNEL_ID)
-
-            rochi = f"<@{ROCHI_ID}>"
-            cam = f"<@{CAM_ID}>"
-
-            mensaje = (
-                f"🌱 ¡Volví equipo! Ya estoy listo para otro día de siembra.\n\n"
-                f"✨ Y veo que tenemos nuevas integrantes en el jardín... "
-                f"¡bienvenidas {cam} y {rochi}! ✨\n\n"
-                f"Vamos a hacer que hoy crezca algo lindo 👇"
-            )
-
-            await canal.send(mensaje)
-            print("[Reminders] ✅ Saludo inicial enviado.")
-        except Exception as e:
-            print(f"❌ Error en saludo_inicial: {e}")
-
-    # ================== FORMATEO DE MENSAJE CLICKUP ==================
 
     def format_message(self, tasks):
         emojis = {
@@ -174,7 +129,6 @@ class Reminders(commands.Cog):
             "Por favor revisen si todo está correcto 🙌\n"
             "_A veces me puedo equivocar 😅_"
         )
-
 
 async def setup(bot):
     reminders = Reminders(bot)
