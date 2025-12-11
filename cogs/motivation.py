@@ -13,10 +13,8 @@ CAM_ID = 737370380775456798
 NOMBRES_BOT = ["semillero bot", "semillero-bot", "semillerobot"]
 
 RESPUESTAS_MENCION = [
-    "¿Me llamaron? 🌱 Estoy acá regando ideas.",
     "Presente, Semillero Bot reportándose 💻🌿",
     "Acá estoy, ¿qué vamos a sembrar hoy? ✨",
-    "Yo escuché *Semillero bot* y vine corriendo 🌾"
 ]
 
 RESPUESTAS_SALUDO = [
