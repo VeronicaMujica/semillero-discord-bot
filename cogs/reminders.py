@@ -6,6 +6,7 @@ import os
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
 import re
+import random
 
 # ✅ Conversión robusta del canal
 try:
@@ -13,17 +14,84 @@ try:
 except:
     CHANNEL_ID = 0
 
+
 class Reminders(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.app = web.Application()
         self.setup_routes()
 
+        # ✅ Plantillas de mensajes (variados)
+        self.build_templates()
+
         # ✅ Iniciamos el recordatorio diario
         self.daily_clickup_reminder.start()
 
     def setup_routes(self):
         self.app.router.add_post("/reminders", self.receive_reminders)
+
+    def build_templates(self):
+        # Mensajes AM (9:30) — variados, con tácticas distintas
+        self.templates_am = [
+            ("⏰ **Check-in rápido (2 min)**\n"
+             "Antes de meterte en modo producción: actualicen estados en **ClickUp**.\n"
+             "Si está actualizado, el día rinde el doble 🌱"),
+
+            ("🌱 **Orden = velocidad**\n"
+             "Chicos: **ClickUp al día** antes de arrancar fuerte.\n"
+             "Cuando no está actualizado, terminamos coordinando por chat (y eso mata foco) 😅"),
+
+            ("🔥 **Anti-cuello de botella**\n"
+             "Actualicen **hoy** los estados en ClickUp.\n"
+             "Si hay bloqueo, pónganlo en la tarea (no en la mente) 🙌"),
+
+            ("📌 **Micro-hábito**\n"
+             "Abrí ClickUp → 3 tareas → actualizá estado.\n"
+             "Listo. 90 segundos. Después sí: a romperla ☀️"),
+
+            ("🧠 **Claridad para priorizar**\n"
+             "Si ClickUp está desactualizado, la prioridad del equipo también.\n"
+             "Actualicen estados ahora y evitamos retrabajo 🌻"),
+        ]
+
+        # Mensajes 6pm — “voz Isa”, cercanos
+        self.templates_6pm = [
+            ("🌙 **Antes de cerrar el día…**\n"
+             "chee, actualicen las tareas en **ClickUp** así mañana arrancamos sin caos 😌🌱"),
+
+            ("🌿 **Cierre del día (modo Isa)**\n"
+             "Amores, 2 minutitos: dejen **ClickUp actualizado**.\n"
+             "Me hacen la vida más fácil y mañana volamos 💚"),
+
+            ("✨ **Último empujón**\n"
+             "chee, no me dejen ClickUp en misterio 😅\n"
+             "Actualicen estados y si algo quedó trabado, déjenlo marcado 🙏"),
+
+            ("🧡 **Cierre prolijo**\n"
+             "Antes de terminar: actualicen ClickUp.\n"
+             "Gracias, los quiero, pero los quiero más cuando está todo ordenado 😂🌱"),
+        ]
+
+        self._last_am_idx = None
+        self._last_6pm_idx = None
+
+    def pick_template(self, templates, last_idx, now):
+        """
+        Elige un template evitando repetir el último.
+        Random controlado por fecha para que tenga "variedad estable" por día.
+        """
+        if not templates:
+            return None, last_idx
+
+        seed = int(now.strftime("%Y%m%d"))  # cambia día a día
+        rng = random.Random(seed)
+
+        indices = list(range(len(templates)))
+        if last_idx is not None and len(indices) > 1 and last_idx in indices:
+            indices.remove(last_idx)
+
+        idx = rng.choice(indices)
+        return templates[idx], idx
 
     async def receive_reminders(self, request):
         try:
@@ -49,20 +117,28 @@ class Reminders(commands.Cog):
             print("Error Webhook:", e)
             return web.json_response({"error": str(e)}, status=500)
 
-    # ✅ ✅ ✅ NUEVO: Recordatorio diario ClickUp — 9:30 ARG
+    # ✅ ✅ ✅ Recordatorios diarios ClickUp — 9:30 y 18:00 ARG
     @tasks.loop(minutes=1)
     async def daily_clickup_reminder(self):
         now = datetime.now(ZoneInfo("America/Argentina/Buenos_Aires"))
-        target = time(9, 30)
 
-        if now.hour == target.hour and now.minute == target.minute:
-            channel = self.bot.get_channel(CHANNEL_ID)
-            if channel:
-                await channel.send(
-                    "⏰ **Recordatorio diario**\n"
-                    "Chicos, actualicen los estados en **ClickUp** antes de seguir el día 🙌\n"
-                    "Esto nos mantiene sincronizados y evita cuellos de botella 🌱🔥"
-                )
+        channel = self.bot.get_channel(CHANNEL_ID)
+        if not channel:
+            return
+
+        # 9:30 AM
+        if now.hour == 9 and now.minute == 30:
+            msg, idx = self.pick_template(self.templates_am, self._last_am_idx, now)
+            self._last_am_idx = idx
+            if msg:
+                await channel.send(msg)
+
+        # 18:00 (6pm)
+        if now.hour == 18 and now.minute == 0:
+            msg, idx = self.pick_template(self.templates_6pm, self._last_6pm_idx, now)
+            self._last_6pm_idx = idx
+            if msg:
+                await channel.send(msg)
 
     @daily_clickup_reminder.before_loop
     async def before_daily(self):
@@ -121,7 +197,7 @@ class Reminders(commands.Cog):
             text += "\n"
 
         return text.strip()
-    
+
     @commands.command(name="mensaje")
     async def mensaje_clickup(self, ctx):
         await ctx.send(
@@ -129,6 +205,7 @@ class Reminders(commands.Cog):
             "Por favor revisen si todo está correcto 🙌\n"
             "_A veces me puedo equivocar 😅_"
         )
+
 
 async def setup(bot):
     reminders = Reminders(bot)
