@@ -59,10 +59,6 @@ class Reminders(commands.Cog):
             ("🌙 **Antes de cerrar el día…**\n"
              "chee, actualicen las tareas en **ClickUp** así mañana arrancamos sin caos 😌🌱"),
 
-            ("🌿 **Cierre del día (modo Isa)**\n"
-             "Amores, 2 minutitos: dejen **ClickUp actualizado**.\n"
-             "Me hacen la vida más fácil y mañana volamos 💚"),
-
             ("✨ **Último empujón**\n"
              "chee, no me dejen ClickUp en misterio 😅\n"
              "Actualicen estados y si algo quedó trabado, déjenlo marcado 🙏"),
@@ -130,13 +126,6 @@ class Reminders(commands.Cog):
         if now.hour == 10 and now.minute == 0:
             msg, idx = self.pick_template(self.templates_am, self._last_am_idx, now)
             self._last_am_idx = idx
-            if msg:
-                await channel.send(msg)
-
-        # 18:00 (6pm)
-        if now.hour == 18 and now.minute == 0:
-            msg, idx = self.pick_template(self.templates_6pm, self._last_6pm_idx, now)
-            self._last_6pm_idx = idx
             if msg:
                 await channel.send(msg)
 
