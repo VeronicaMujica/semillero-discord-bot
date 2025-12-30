@@ -113,7 +113,25 @@ class Reminders(commands.Cog):
             print("Error Webhook:", e)
             return web.json_response({"error": str(e)}, status=500)
 
-#
+    # ✅ ✅ ✅ Recordatorios diarios ClickUp — 9:30 y 18:00 ARG
+    @tasks.loop(minutes=1)
+    async def daily_clickup_reminder(self):
+        now = datetime.now(ZoneInfo("America/Argentina/Buenos_Aires"))
+
+        channel = self.bot.get_channel(CHANNEL_ID)
+        if not channel:
+            return
+
+        # 9:30 AM
+        if now.hour == 10 and now.minute == 50:
+            msg, idx = self.pick_template(self.templates_am, self._last_am_idx, now)
+            self._last_am_idx = idx
+            if msg:
+                await channel.send(msg)
+
+    @daily_clickup_reminder.before_loop
+    async def before_daily(self):
+        await self.bot.wait_until_ready()
 
     def format_message(self, tasks):
         emojis = {
