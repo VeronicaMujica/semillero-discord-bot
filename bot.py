@@ -16,7 +16,12 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # Evento: cuando el bot está listo
 @bot.event
 async def on_ready():
-    print(f"✅ Bot conectado como {bot.user}")
+    try:
+        synced = await bot.tree.sync()
+        print(f"✅ Bot conectado como {bot.user}")
+        print(f"🔁 Slash commands sincronizados: {len(synced)}")
+    except Exception as e:
+        print(f"⚠️ Error sincronizando slash commands: {e}")
 
 # Cargar módulos (cogs) de forma asíncrona
 async def load_extensions():
@@ -32,7 +37,10 @@ async def load_extensions():
 async def main():
     async with bot:
         await load_extensions()
-        await bot.start(os.getenv("DISCORD_TOKEN"))
+        token = os.getenv("DISCORD_TOKEN")
+        if not token:
+            raise ValueError("Falta DISCORD_TOKEN en el archivo .env")
+        await bot.start(token)
 
 # Ejecutar el bot
 if __name__ == "__main__":
