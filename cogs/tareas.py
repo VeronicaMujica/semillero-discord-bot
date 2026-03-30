@@ -127,6 +127,14 @@ class TareasCog(commands.Cog):
 
             task_url = task.get("url")
             msg = f"✅ Tarea creada: **{task.get('name', titulo)}**"
+            msg += f"\n👤 Responsable: {responsable.name}"
+            msg += f"\n📁 Proyecto: {proyecto.name}"
+
+            if prioridad:
+                msg += f"\n⚡ Prioridad: {prioridad.name}"
+
+            if fecha_limite:
+                msg += f"\n📅 Fecha límite: {fecha_limite}"
 
             if task_url:
                 msg += f"\n🔗 {task_url}"
