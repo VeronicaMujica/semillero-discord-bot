@@ -17,6 +17,15 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 @bot.event
 async def on_ready():
     print(f"✅ Bot conectado como {bot.user}")
+    # Sync por servidor (instantáneo) + sync global (hasta 1h)
+    for guild in bot.guilds:
+        try:
+            await bot.tree.sync(guild=guild)
+            print(f"🔁 Slash commands sincronizados en: {guild.name}")
+        except Exception as e:
+            print(f"⚠️ Error sincronizando en {guild.name}: {e}")
+    await bot.tree.sync()
+    print(f"🌐 Sync global completado")
 
 # Cargar módulos (cogs) de forma asíncrona
 async def load_extensions():
