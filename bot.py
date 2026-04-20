@@ -1,8 +1,14 @@
 import os
+import logging
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 import asyncio
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s | %(message)s",
+)
 
 load_dotenv()
 

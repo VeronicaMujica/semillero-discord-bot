@@ -22,7 +22,7 @@ from user_mapping import (
 log = logging.getLogger(__name__)
 ARG_TZ = ZoneInfo("America/Argentina/Buenos_Aires")
 
-GUILD_WORKSPACE_FILE = Path("guild_workspace.json")
+GUILD_WORKSPACE_FILE = Path(__file__).resolve().parent.parent / "guild_workspace.json"
 UMBRAL_ATRASADAS = 2
 
 

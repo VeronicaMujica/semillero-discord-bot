@@ -16,7 +16,7 @@ from user_mapping import CLICKUP_TEAM, display_name
 log = logging.getLogger(__name__)
 ARG_TZ = ZoneInfo("America/Argentina/Buenos_Aires")
 
-GUILD_WORKSPACE_FILE = Path("guild_workspace.json")
+GUILD_WORKSPACE_FILE = Path(__file__).resolve().parent.parent / "guild_workspace.json"
 WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
 

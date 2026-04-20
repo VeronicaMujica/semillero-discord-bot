@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 from datetime import datetime
 from pathlib import Path
@@ -10,7 +11,9 @@ from discord.ext import commands
 from clickup_client import ClickUpClient, ClickUpAPIError
 from user_mapping import get_clickup_id
 
-WORKSPACE_CONFIG_FILE = Path("guild_workspace.json")
+log = logging.getLogger(__name__)
+
+WORKSPACE_CONFIG_FILE = Path(__file__).resolve().parent.parent / "guild_workspace.json"
 
 PRIORITY_MAP = {"urgente": 1, "alta": 2, "normal": 3, "baja": 4}
 PRIORITY_COLOR = {"urgente": 0xE53935, "alta": 0xFB8C00, "normal": 0x1E88E5, "baja": 0x757575}
@@ -25,8 +28,14 @@ def _load_workspaces() -> dict:
 
 
 def _save_workspaces(data: dict):
-    with open(WORKSPACE_CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    log.info(f"Guardando workspaces en {WORKSPACE_CONFIG_FILE}: {data}")
+    try:
+        with open(WORKSPACE_CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        log.info("Workspaces guardados OK")
+    except Exception as e:
+        log.error(f"Fallo guardando workspaces: {e}")
+        raise
 
 
 def _parse_date_ms(date_str: str | None) -> int | None:
@@ -298,14 +307,26 @@ class _WorkspaceSelectView(discord.ui.View):
         self.add_item(select)
 
     async def _on_select(self, interaction: discord.Interaction):
-        team_id = interaction.data["values"][0]
-        data = _load_workspaces()
-        data[str(self.guild_id)] = team_id
-        _save_workspaces(data)
-        await interaction.response.edit_message(
-            content=f"✅ Workspace vinculado (`{team_id}`).\nYa puedes usar `/tarea` en este servidor.",
-            view=None,
-        )
+        try:
+            team_id = interaction.data["values"][0]
+            log.info(f"_on_select: guild_id={self.guild_id}, team_id={team_id}")
+            data = _load_workspaces()
+            data[str(self.guild_id)] = team_id
+            _save_workspaces(data)
+            await interaction.response.edit_message(
+                content=f"✅ Workspace vinculado (`{team_id}`).\nYa puedes usar `/tarea` en este servidor.",
+                view=None,
+            )
+        except Exception as e:
+            log.exception("Error en _on_select")
+            try:
+                await interaction.response.send_message(
+                    f"❌ Error guardando workspace: `{e}`", ephemeral=True
+                )
+            except discord.InteractionResponded:
+                await interaction.followup.send(
+                    f"❌ Error guardando workspace: `{e}`", ephemeral=True
+                )
 
 
 async def setup(bot: commands.Bot):
