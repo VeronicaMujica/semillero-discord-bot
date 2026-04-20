@@ -15,12 +15,19 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
+    print(f"🃏 Dealer Bot conectado como {bot.user}")
+    # Sync por servidor (instantáneo) + sync global (hasta 1h)
+    for guild in bot.guilds:
+        try:
+            await bot.tree.sync(guild=guild)
+            print(f"🔁 Slash commands sincronizados en: {guild.name}")
+        except Exception as e:
+            print(f"⚠️ Error sincronizando en {guild.name}: {e}")
     try:
-        synced = await bot.tree.sync()
-        print(f"🃏 Dealer Bot conectado como {bot.user}")
-        print(f"🔁 Slash commands sincronizados: {len(synced)}")
+        await bot.tree.sync()
+        print("🌐 Sync global completado")
     except Exception as e:
-        print(f"⚠️ Error sincronizando slash commands: {e}")
+        print(f"⚠️ Error en sync global: {e}")
 
 
 async def load_extensions():

@@ -1,6 +1,8 @@
 import os
+import json
 import time
 import logging
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import discord
@@ -14,7 +16,18 @@ from user_mapping import CLICKUP_TEAM, display_name
 log = logging.getLogger(__name__)
 ARG_TZ = ZoneInfo("America/Argentina/Buenos_Aires")
 
+GUILD_WORKSPACE_FILE = Path("guild_workspace.json")
 WEEK_MS = 7 * 24 * 60 * 60 * 1000
+
+
+def team_id_for_guild(guild_id: int) -> str | None:
+    if not GUILD_WORKSPACE_FILE.exists():
+        return None
+    try:
+        data = json.loads(GUILD_WORKSPACE_FILE.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    return data.get(str(guild_id))
 
 
 class ResumenCog(commands.Cog):
@@ -27,10 +40,9 @@ class ResumenCog(commands.Cog):
             or os.getenv("DISCORD_CHANNEL_REMINDERS")
             or 0
         )
-        self.default_team_id = os.getenv("CLICKUP_TEAM_ID") or "9011755800"
+        self.fallback_team_id = os.getenv("CLICKUP_TEAM_ID") or "9011755800"
 
     async def cog_load(self):
-        # Viernes 17:00 Arg
         self.scheduler.add_job(
             self.enviar_resumen_semanal,
             "cron",
@@ -61,7 +73,6 @@ class ResumenCog(commands.Cog):
             include_closed=True,
         )
 
-        # Top creadores / cerradores
         por_asignado_cerradas: dict[int, int] = {}
         valid_ids = {info["id"] for info in CLICKUP_TEAM.values()}
         for t in cerradas:
@@ -99,8 +110,11 @@ class ResumenCog(commands.Cog):
         channel = self.bot.get_channel(self.channel_id)
         if not channel:
             return
+        team_id = (
+            team_id_for_guild(channel.guild.id) if channel.guild else None
+        ) or self.fallback_team_id
         try:
-            msg = await self._build_resumen(self.default_team_id)
+            msg = await self._build_resumen(team_id)
         except ClickUpAPIError as e:
             msg = f"⚠️ No pude armar el resumen semanal: `{e}`"
         try:
@@ -114,8 +128,9 @@ class ResumenCog(commands.Cog):
     )
     async def resumen_semanal(self, interaction: discord.Interaction):
         await interaction.response.defer()
+        team_id = team_id_for_guild(interaction.guild_id) or self.fallback_team_id
         try:
-            msg = await self._build_resumen(self.default_team_id)
+            msg = await self._build_resumen(team_id)
         except ClickUpAPIError as e:
             await interaction.followup.send(f"⚠️ Error ClickUp: `{e}`")
             return

@@ -22,8 +22,7 @@ from user_mapping import (
 log = logging.getLogger(__name__)
 ARG_TZ = ZoneInfo("America/Argentina/Buenos_Aires")
 
-GUILD_WORKSPACE_FILE = Path(__file__).parent.parent / "data" / "guild_workspace.json"
-
+GUILD_WORKSPACE_FILE = Path("guild_workspace.json")
 UMBRAL_ATRASADAS = 2
 
 
@@ -36,6 +35,10 @@ def load_guild_workspace() -> dict:
         return {}
 
 
+def team_id_for_guild(guild_id: int) -> str | None:
+    return load_guild_workspace().get(str(guild_id))
+
+
 class RemindersCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -46,10 +49,9 @@ class RemindersCog(commands.Cog):
             or os.getenv("DISCORD_CHANNEL_REMINDERS")
             or 0
         )
-        self.default_team_id = os.getenv("CLICKUP_TEAM_ID") or "9011755800"
+        self.fallback_team_id = os.getenv("CLICKUP_TEAM_ID") or "9011755800"
 
     async def cog_load(self):
-        # Martes y jueves a las 10:00 Arg
         self.scheduler.add_job(
             self.enviar_reminders,
             "cron",
@@ -68,7 +70,6 @@ class RemindersCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        # Auto-linkear handles conocidos con IDs reales del server
         for guild in self.bot.guilds:
             try:
                 nuevos = await auto_link_from_guild(guild)
@@ -90,16 +91,25 @@ class RemindersCog(commands.Cog):
                 by_user[a["id"]].append(t)
         return by_user
 
-    async def enviar_reminders(self, team_id: str | None = None, channel=None):
-        team_id = team_id or self.default_team_id
-        if channel is None:
-            if not self.channel_id:
-                log.warning("No hay canal configurado para reminders.")
-                return
-            channel = self.bot.get_channel(self.channel_id)
+    def _resolve_channel(self):
+        if not self.channel_id:
+            return None
+        return self.bot.get_channel(self.channel_id)
+
+    def _team_id_for_channel(self, channel) -> str:
+        if channel and channel.guild:
+            tid = team_id_for_guild(channel.guild.id)
+            if tid:
+                return tid
+        return self.fallback_team_id
+
+    async def enviar_reminders(self):
+        channel = self._resolve_channel()
         if not channel:
             log.warning("Canal de reminders no encontrado.")
             return
+
+        team_id = self._team_id_for_channel(channel)
 
         try:
             overdue = await self._overdue_by_user(team_id)
@@ -144,7 +154,7 @@ class RemindersCog(commands.Cog):
     )
     async def atrasadas(self, interaction: discord.Interaction):
         await interaction.response.defer()
-        team_id = self.default_team_id
+        team_id = team_id_for_guild(interaction.guild_id) or self.fallback_team_id
         try:
             overdue = await self._overdue_by_user(team_id)
         except ClickUpAPIError as e:
