@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import py_compile, sys; files=['bot.py','clickup_client.py','user_mapping.py','cogs/admin.py','cogs/fun.py','cogs/motivation.py','cogs/reminders.py','cogs/resumen.py','cogs/tareas.py']; [py_compile.compile\\(f, doraise=True\\) for f in files]; print\\('OK'\\)\")",
+      "Bash(ls venv/Scripts/python*)",
+      "Bash(py --version)",
+      "Bash(./venv/Scripts/python.exe -c \"import py_compile; files=['bot.py','clickup_client.py','user_mapping.py','cogs/admin.py','cogs/fun.py','cogs/motivation.py','cogs/reminders.py','cogs/resumen.py','cogs/tareas.py']; [py_compile.compile\\(f, doraise=True\\) for f in files]; print\\('OK'\\)\")",
+      "Bash(py -3 -c \"import py_compile; import os; os.chdir\\(r'C:/Users/Administrador/Desktop/semillero-discord-bot'\\); files=['bot.py','clickup_client.py','user_mapping.py','cogs/admin.py','cogs/fun.py','cogs/motivation.py','cogs/reminders.py','cogs/resumen.py','cogs/tareas.py']; [py_compile.compile\\(f, doraise=True\\) for f in files]; print\\('OK'\\)\")"
+    ]
+  }
+}

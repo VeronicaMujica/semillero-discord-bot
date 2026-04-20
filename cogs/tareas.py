@@ -1,4 +1,5 @@
 import os
+import time
 from datetime import datetime
 
 import discord
@@ -6,6 +7,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from clickup_client import ClickUpClient, ClickUpAPIError
+from user_mapping import get_clickup_id, display_name
 
 
 def parse_priority(value: str | None) -> int | None:
@@ -148,6 +150,57 @@ class TareasCog(commands.Cog):
                 f"❌ Error inesperado:\n`{e}`",
                 ephemeral=True
             )
+
+
+    @app_commands.command(
+        name="mis-tareas",
+        description="Ver tus tareas abiertas en ClickUp",
+    )
+    async def mis_tareas(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
+        clickup_id = get_clickup_id(interaction.user.id)
+        if not clickup_id:
+            await interaction.followup.send(
+                "❌ No estás vinculado. Usá `/vincular-clickup` primero.",
+                ephemeral=True,
+            )
+            return
+
+        team_id = os.getenv("CLICKUP_TEAM_ID") or "9011755800"
+
+        try:
+            tasks = await self.clickup.get_all_team_tasks(
+                team_id,
+                assignee_ids=[clickup_id],
+                include_closed=False,
+            )
+        except ClickUpAPIError as e:
+            await interaction.followup.send(f"❌ Error ClickUp: `{e}`", ephemeral=True)
+            return
+
+        if not tasks:
+            await interaction.followup.send(
+                "✨ No tenés tareas abiertas. Mesa limpia.", ephemeral=True
+            )
+            return
+
+        now_ms = int(time.time() * 1000)
+        lineas = [f"🃏 **Tus tareas abiertas ({len(tasks)}):**"]
+        for t in tasks[:15]:
+            nombre = t.get("name", "sin título")
+            url = t.get("url", "")
+            due = t.get("due_date")
+            icono = "⏰" if due and int(due) < now_ms else "•"
+            if url:
+                lineas.append(f"{icono} [{nombre}]({url})")
+            else:
+                lineas.append(f"{icono} {nombre}")
+
+        if len(tasks) > 15:
+            lineas.append(f"\n_…y {len(tasks) - 15} más._")
+
+        await interaction.followup.send("\n".join(lineas), ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
