@@ -5,7 +5,14 @@
       "Bash(ls venv/Scripts/python*)",
       "Bash(py --version)",
       "Bash(./venv/Scripts/python.exe -c \"import py_compile; files=['bot.py','clickup_client.py','user_mapping.py','cogs/admin.py','cogs/fun.py','cogs/motivation.py','cogs/reminders.py','cogs/resumen.py','cogs/tareas.py']; [py_compile.compile\\(f, doraise=True\\) for f in files]; print\\('OK'\\)\")",
-      "Bash(py -3 -c \"import py_compile; import os; os.chdir\\(r'C:/Users/Administrador/Desktop/semillero-discord-bot'\\); files=['bot.py','clickup_client.py','user_mapping.py','cogs/admin.py','cogs/fun.py','cogs/motivation.py','cogs/reminders.py','cogs/resumen.py','cogs/tareas.py']; [py_compile.compile\\(f, doraise=True\\) for f in files]; print\\('OK'\\)\")"
+      "Bash(py -3 -c \"import py_compile; import os; os.chdir\\(r'C:/Users/Administrador/Desktop/semillero-discord-bot'\\); files=['bot.py','clickup_client.py','user_mapping.py','cogs/admin.py','cogs/fun.py','cogs/motivation.py','cogs/reminders.py','cogs/resumen.py','cogs/tareas.py']; [py_compile.compile\\(f, doraise=True\\) for f in files]; print\\('OK'\\)\")",
+      "Bash(py -3 -c 'import os; os.chdir\\('\\\\''.'\\\\''\\); import ast; files=['\\\\''bot.py'\\\\'','\\\\''clickup_client.py'\\\\'','\\\\''user_mapping.py'\\\\'','\\\\''cogs/admin.py'\\\\'','\\\\''cogs/fun.py'\\\\'','\\\\''cogs/motivation.py'\\\\'','\\\\''cogs/reminders.py'\\\\'','\\\\''cogs/resumen.py'\\\\'','\\\\''cogs/tareas.py'\\\\'']; *)",
+      "Bash(python -c ' *)",
+      "Bash(py -3 -c ' *)",
+      "Bash(docker compose *)",
+      "Bash(echo \"---exit:$?---\")",
+      "Bash(docker exec *)",
+      "Bash(py -3 -c \"import py_compile; import os; os.chdir\\(r'C:/Users/Administrador/Desktop/semillero-discord-bot'\\); [py_compile.compile\\(f, doraise=True\\) for f in ['bot.py','cogs/tareas.py','cogs/reminders.py','cogs/resumen.py']]; print\\('OK'\\)\")"
     ]
   }
 }
