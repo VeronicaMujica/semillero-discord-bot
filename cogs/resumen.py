@@ -54,6 +54,24 @@ class ResumenCog(commands.Cog):
         )
         self.scheduler.start()
 
+    def _primary_guild_id(self) -> int | None:
+        if not self.channel_id:
+            return None
+        ch = self.bot.get_channel(self.channel_id)
+        if ch is None or ch.guild is None:
+            return None
+        return ch.guild.id
+
+    async def _reject_if_not_primary(self, interaction: discord.Interaction) -> bool:
+        primary = self._primary_guild_id()
+        if primary is None or interaction.guild_id == primary:
+            return False
+        await interaction.response.send_message(
+            "🃏 Este comando solo está habilitado en el server principal del Dealer.",
+            ephemeral=True,
+        )
+        return True
+
     def cog_unload(self):
         if self.scheduler.running:
             self.scheduler.shutdown(wait=False)
@@ -127,6 +145,8 @@ class ResumenCog(commands.Cog):
         description="Pedir el resumen semanal ahora (últimos 7 días)",
     )
     async def resumen_semanal(self, interaction: discord.Interaction):
+        if await self._reject_if_not_primary(interaction):
+            return
         await interaction.response.defer()
         team_id = team_id_for_guild(interaction.guild_id) or self.fallback_team_id
         try:

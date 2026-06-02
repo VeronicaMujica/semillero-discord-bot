@@ -87,6 +87,11 @@ class RemindersCog(commands.Cog):
         )
         by_user: dict[int, list[dict]] = defaultdict(list)
         for t in tasks:
+            # ClickUp tiene 4 tipos de status: open, custom, closed, done.
+            # include_closed=False excluye solo "closed"; las "done" se cuelan.
+            status_type = (t.get("status") or {}).get("type", "")
+            if status_type in ("closed", "done"):
+                continue
             for a in t.get("assignees", []):
                 by_user[a["id"]].append(t)
         return by_user
@@ -95,6 +100,22 @@ class RemindersCog(commands.Cog):
         if not self.channel_id:
             return None
         return self.bot.get_channel(self.channel_id)
+
+    def _primary_guild_id(self) -> int | None:
+        ch = self._resolve_channel()
+        if ch is None or ch.guild is None:
+            return None
+        return ch.guild.id
+
+    async def _reject_if_not_primary(self, interaction: discord.Interaction) -> bool:
+        primary = self._primary_guild_id()
+        if primary is None or interaction.guild_id == primary:
+            return False
+        await interaction.response.send_message(
+            "🃏 Este comando solo está habilitado en el server principal del Dealer.",
+            ephemeral=True,
+        )
+        return True
 
     def _team_id_for_channel(self, channel) -> str:
         if channel and channel.guild:
@@ -153,6 +174,8 @@ class RemindersCog(commands.Cog):
         description="Ver quién tiene más tareas atrasadas en ClickUp",
     )
     async def atrasadas(self, interaction: discord.Interaction):
+        if await self._reject_if_not_primary(interaction):
+            return
         await interaction.response.defer()
         team_id = team_id_for_guild(interaction.guild_id) or self.fallback_team_id
         try:

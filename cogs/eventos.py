@@ -1,5 +1,6 @@
 import calendar
 import logging
+import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -440,6 +441,20 @@ class EventosCog(commands.Cog):
             log.warning(f"Google Calendar no configurado: {e}")
             self.calendar = None
             self._ready = False
+        self.channel_id = int(
+            os.getenv("DEALER_CHANNEL_ID")
+            or os.getenv("DISCORD_CHANNEL_REMINDERS")
+            or 0
+        )
+
+    def _primary_guild_id(self) -> int | None:
+        """El server principal es donde vive DEALER_CHANNEL_ID."""
+        if not self.channel_id:
+            return None
+        ch = self.bot.get_channel(self.channel_id)
+        if ch is None or ch.guild is None:
+            return None
+        return ch.guild.id
 
     @app_commands.command(
         name="evento",
@@ -455,6 +470,15 @@ class EventosCog(commands.Cog):
         titulo: str,
         descripcion: str | None = None,
     ):
+        primary = self._primary_guild_id()
+        if primary is not None and interaction.guild_id != primary:
+            await interaction.response.send_message(
+                "🃏 Los eventos del Dealer solo se crean en el server principal "
+                "(donde vive el calendar). Acá no.",
+                ephemeral=True,
+            )
+            return
+
         if not self._ready or self.calendar is None:
             await interaction.response.send_message(
                 "❌ Google Calendar no está configurado. "
