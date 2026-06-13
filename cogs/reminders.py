@@ -80,20 +80,52 @@ class RemindersCog(commands.Cog):
 
     async def _overdue_by_user(self, team_id: str) -> dict[int, list[dict]]:
         now_ms = int(time.time() * 1000)
-        tasks = await self.clickup.get_all_team_tasks(
+        raw = await self.clickup.get_all_team_tasks(
             team_id,
             due_date_lt=now_ms,
             include_closed=False,
         )
+
+        def _ms(value) -> int | None:
+            if value in (None, "", 0, "0"):
+                return None
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return None
+
+        # Dedup por id + filtro estricto: debe tener due_date real, debe estar
+        # vencido y no debe estar cerrada/lista/archivada.
+        seen: set = set()
         by_user: dict[int, list[dict]] = defaultdict(list)
-        for t in tasks:
-            # ClickUp tiene 4 tipos de status: open, custom, closed, done.
-            # include_closed=False excluye solo "closed"; las "done" se cuelan.
+        filtered = 0
+        for t in raw:
+            tid = t.get("id")
+            if tid in seen:
+                continue
+            seen.add(tid)
+
+            due = _ms(t.get("due_date"))
+            if due is None or due >= now_ms:
+                filtered += 1
+                continue
+
             status_type = (t.get("status") or {}).get("type", "")
             if status_type in ("closed", "done"):
+                filtered += 1
                 continue
+
+            if t.get("archived"):
+                filtered += 1
+                continue
+
             for a in t.get("assignees", []):
                 by_user[a["id"]].append(t)
+
+        log.info(
+            f"Overdue: raw={len(raw)}, descartadas={filtered}, "
+            f"usuarios con atrasadas={len(by_user)}"
+        )
         return by_user
 
     def _resolve_channel(self):

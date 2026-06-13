@@ -80,15 +80,49 @@ class ResumenCog(commands.Cog):
         now_ms = int(time.time() * 1000)
         hace_una_semana = now_ms - WEEK_MS
 
-        creadas = await self.clickup.get_all_team_tasks(
+        # Traemos todo lo creado/cerrado en la última semana y filtramos client-side.
+        # ClickUp interpreta date_*_gt como sugerencia y termina devolviendo de más
+        # cuando se paginar; nos aseguramos acá.
+        raw_creadas = await self.clickup.get_all_team_tasks(
             team_id,
             date_created_gt=hace_una_semana,
             include_closed=True,
         )
-        cerradas = await self.clickup.get_all_team_tasks(
+        raw_cerradas = await self.clickup.get_all_team_tasks(
             team_id,
             date_closed_gt=hace_una_semana,
             include_closed=True,
+        )
+
+        def _ms(value) -> int | None:
+            if value in (None, "", 0, "0"):
+                return None
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return None
+
+        # Dedup por id y filtro estricto por fecha
+        creadas_dict = {}
+        for t in raw_creadas:
+            created = _ms(t.get("date_created"))
+            if created is None or created < hace_una_semana:
+                continue
+            creadas_dict[t.get("id")] = t
+
+        cerradas_dict = {}
+        for t in raw_cerradas:
+            closed = _ms(t.get("date_closed"))
+            if closed is None or closed < hace_una_semana:
+                continue
+            cerradas_dict[t.get("id")] = t
+
+        creadas = list(creadas_dict.values())
+        cerradas = list(cerradas_dict.values())
+
+        log.info(
+            f"Resumen: raw_creadas={len(raw_creadas)} → {len(creadas)} | "
+            f"raw_cerradas={len(raw_cerradas)} → {len(cerradas)}"
         )
 
         por_asignado_cerradas: dict[int, int] = {}
