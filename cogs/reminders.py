@@ -1,7 +1,7 @@
 import os
 import json
-import time
 import logging
+from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 from collections import defaultdict
@@ -37,6 +37,24 @@ def load_guild_workspace() -> dict:
 
 def team_id_for_guild(guild_id: int) -> str | None:
     return load_guild_workspace().get(str(guild_id))
+
+
+def _start_of_today_arg_ms() -> int:
+    """Devuelve el timestamp en ms del inicio del día de hoy en hora Argentina.
+    Se usa como corte para 'atrasada': tarea con due_date estrictamente ANTES
+    de este momento. Las tareas cuyo vencimiento es hoy NO son atrasadas."""
+    now = datetime.now(ARG_TZ)
+    start_of_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return int(start_of_today.timestamp() * 1000)
+
+
+def _ms(value) -> int | None:
+    if value in (None, "", 0, "0"):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 class RemindersCog(commands.Cog):
@@ -79,52 +97,62 @@ class RemindersCog(commands.Cog):
                 log.warning(f"Error auto-linkeando en {guild.name}: {e}")
 
     async def _overdue_by_user(self, team_id: str) -> dict[int, list[dict]]:
-        now_ms = int(time.time() * 1000)
+        """Devuelve tareas atrasadas por usuario.
+        Una tarea es 'atrasada' cuando cumple TODAS estas condiciones:
+        - Tiene due_date real (no null/0)
+        - due_date < inicio del día de hoy en hora ARG (o sea, al menos 1 día de retraso)
+        - Su status.type NO es 'closed' ni 'done'
+        - No está archivada
+        """
+        cutoff_ms = _start_of_today_arg_ms()
+
         raw = await self.clickup.get_all_team_tasks(
             team_id,
-            due_date_lt=now_ms,
+            due_date_lt=cutoff_ms,
             include_closed=False,
         )
 
-        def _ms(value) -> int | None:
-            if value in (None, "", 0, "0"):
-                return None
-            try:
-                return int(value)
-            except (TypeError, ValueError):
-                return None
-
-        # Dedup por id + filtro estricto: debe tener due_date real, debe estar
-        # vencido y no debe estar cerrada/lista/archivada.
         seen: set = set()
         by_user: dict[int, list[dict]] = defaultdict(list)
-        filtered = 0
+        motivos = {
+            "sin_due_date": 0,
+            "due_hoy_o_futuro": 0,
+            "cerrada_done": 0,
+            "archivada": 0,
+            "duplicada": 0,
+        }
+        aceptadas = 0
         for t in raw:
             tid = t.get("id")
             if tid in seen:
+                motivos["duplicada"] += 1
                 continue
             seen.add(tid)
 
             due = _ms(t.get("due_date"))
-            if due is None or due >= now_ms:
-                filtered += 1
+            if due is None:
+                motivos["sin_due_date"] += 1
+                continue
+            if due >= cutoff_ms:
+                motivos["due_hoy_o_futuro"] += 1
                 continue
 
             status_type = (t.get("status") or {}).get("type", "")
             if status_type in ("closed", "done"):
-                filtered += 1
+                motivos["cerrada_done"] += 1
                 continue
 
             if t.get("archived"):
-                filtered += 1
+                motivos["archivada"] += 1
                 continue
 
+            aceptadas += 1
             for a in t.get("assignees", []):
                 by_user[a["id"]].append(t)
 
         log.info(
-            f"Overdue: raw={len(raw)}, descartadas={filtered}, "
-            f"usuarios con atrasadas={len(by_user)}"
+            f"Overdue (cutoff={cutoff_ms}): raw={len(raw)} → aceptadas={aceptadas} | "
+            f"descartes={motivos}"
         )
         return by_user
 
@@ -172,7 +200,7 @@ class RemindersCog(commands.Cog):
 
         valid_clickup_ids = {info["id"] for info in CLICKUP_TEAM.values()}
 
-        lineas = ["🃏 **El Dealer pasa lista** — tarjeta de tareas atrasadas:\n"]
+        lineas = ["🃏 **El Dealer pasa lista** — tareas atrasadas (vencidas antes de hoy):\n"]
         alguien_tiene = False
         for ck_id, tareas in sorted(overdue.items(), key=lambda x: -len(x[1])):
             if ck_id not in valid_clickup_ids:
@@ -203,7 +231,7 @@ class RemindersCog(commands.Cog):
 
     @app_commands.command(
         name="atrasadas",
-        description="Ver quién tiene más tareas atrasadas en ClickUp",
+        description="Ver quién tiene tareas vencidas antes de hoy en ClickUp",
     )
     async def atrasadas(self, interaction: discord.Interaction):
         if await self._reject_if_not_primary(interaction):
@@ -226,7 +254,7 @@ class RemindersCog(commands.Cog):
             await interaction.followup.send("✨ Nadie tiene tareas atrasadas. Mesa limpia.")
             return
 
-        lineas = ["🃏 **Ranking de atrasadas:**"]
+        lineas = ["🃏 **Ranking de atrasadas** (solo vencidas antes de hoy):"]
         medallas = ["🥇", "🥈", "🥉"]
         for idx, (ck_id, cant) in enumerate(ranking):
             medalla = medallas[idx] if idx < 3 else "•"

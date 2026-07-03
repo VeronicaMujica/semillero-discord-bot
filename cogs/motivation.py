@@ -14,84 +14,78 @@ log = logging.getLogger(__name__)
 ARG_TZ = ZoneInfo("America/Argentina/Buenos_Aires")
 
 FRASES_DEALER = [
-    "🃏 Buen día, equipo. Hoy las cartas están a favor del que se sienta a jugarlas.",
-    "🎲 La suerte es para el que aparece. Empezamos.",
-    "🔥 Otra jornada, otra mano. El Dealer reparte, ustedes juegan.",
-    "☕ Buen día. Recuerden: una tarea cerrada hoy vale más que diez pendientes mañana.",
-    "💼 El que sostiene el ritmo, gana el juego. Arrancamos.",
-    "⚡ Mover una sola cosa hoy ya es avanzar. No hace falta más.",
-    "🎯 No hace falta terminar todo. Hace falta empezar.",
-    "🌱 Sembrando desde temprano. El día rinde cuando se agarra al vuelo.",
-    "🃏 El Dealer saluda. Hoy vamos por lo importante, no por lo urgente.",
-    "🚀 Menos scroll, más foco. Vamos con una primera tarea bien hecha.",
-    "💡 La disciplina cansa menos que la culpa. Buen día, equipo.",
-    "🎶 Pongan música, abran ClickUp, y hagamos magia.",
-    "🧠 Cerebro fresco, decisiones claras. Aprovechen la mañana.",
-    "🌞 Buen día. Hoy el Dealer reparte foco y café.",
-    "🪙 Una decisión pequeña tomada hoy, gana al plan perfecto de mañana.",
-    "🎴 El Dealer abre la mesa. Hoy se juega con lo que hay, no con lo que falta.",
-    "🛠️ Buen día. La diferencia entre 'genial' y 'hecho' es que 'hecho' está terminado.",
-    "📿 Empezar mal es mejor que no empezar. Dale.",
-    "🪴 La planta no crece más rápido por mirarla. Movete a otra cosa mientras.",
-    "🎵 ¿Sabés qué es elegante? Cumplir lo que dijiste que ibas a hacer.",
-    "🪞 Buen día. Tu yo del viernes te lo va a agradecer.",
-    "🃏 La casa siempre paga, pero solo a quien apuesta. Arranquen.",
-    "🌅 Hoy no se trata de ser productivo. Se trata de no postergar lo importante.",
-    "🪁 Buen día. El plan perfecto es el que entra en marcha hoy.",
-    "🍃 Respiren, organicen, y avancen. En ese orden.",
-    "🎁 Buen día. Una tarea que llevás 3 días posponiendo te roba más energía que hacerla.",
-    "🪨 Lo difícil primero. El resto del día se vuelve fácil.",
-    "🃏 El Dealer dice: planificar es decidir qué NO vas a hacer hoy.",
-    "🌻 Buenos días. La mejor versión de hoy es la que aparece a horario.",
-    "🛤️ Una semana se gana con lunes a miércoles. Arranquemos firme.",
+    "🃏 Buen día, equipo. Algunas semanas se ganan con arranque; otras, con paciencia. Elegí qué necesita hoy.",
+    "☕ Buen día. Que hoy no gane la lista: que gane la cabeza clara.",
+    "🌱 Hay días para plantar y días para cosechar. Cualquiera de los dos ya es avanzar.",
+    "🎴 Buen día. La casa observa, pero no juzga. Solo reparte.",
+    "🌅 Todo lo que hoy hagas con presencia cuenta doble. Empezamos suave.",
+    "☁️ Que la mañana te encuentre despacio, y el día en marcha.",
+    "🎵 Cada semana es una canción distinta. Hoy elegí vos el ritmo.",
+    "🧭 A veces el mejor plan es empezar con lo más simple. Después el día se acomoda.",
+    "🃏 El Dealer no reparte suerte. Reparte oportunidades.",
+    "🌿 Buen día. Si hoy solo podés con poco, que ese poco valga.",
+    "☕ Uno se equivoca menos con la primera taza de café que con la tercera reunión.",
+    "🕰️ El tiempo se estira cuando se lo respeta. Buen día.",
+    "🎯 No mires el mapa entero. Mirá el siguiente paso — y hacelo.",
+    "🃏 A veces avanzar es no retroceder. También cuenta como triunfo.",
+    "🌻 Buen día. Que hoy la energía te alcance donde importa.",
+    "🎼 Un movimiento bien pensado vale más que veinte apurados.",
+    "☁️ Dejá que el día se acomode antes de exigirle demasiado.",
+    "🌱 Lo que hoy parece un desorden, mañana empieza a mostrar su patrón.",
+    "🃏 Hay manos que se juegan con estrategia. Otras, con corazón. Vos elegís.",
+    "☕ Buen día. La calidad de la mañana define el tono del día.",
+    "🎨 Nada tiene que salir perfecto. Solo salir.",
+    "🌤️ La productividad también es saber cuándo parar. Empecemos sin apuro.",
+    "🃏 El Dealer dice: la constancia es un secreto ruidoso.",
+    "🌿 Que hoy sea un día honesto: ni más ni menos que lo que puedas.",
+    "🎪 A veces el día importante es el que no lo parece.",
+    "☕ Buen día. Que las decisiones de hoy tengan aire, no urgencia.",
+    "🎴 Cada tarea es una excusa para practicar el foco.",
+    "🌅 Hay algo lindo en empezar sin saber cómo va a terminar.",
+    "🃏 Buen día. Elegí una cosa. Solo una. Y hacela con presencia.",
+    "🕊️ Que hoy no te falte paciencia — ni con vos, ni con lo que hacés.",
+    "🎼 Buen día. El ritmo lo marca quien decide no correr.",
+    "🍃 Hay días que piden empuje y otros que piden pausa. Ambos suman.",
+    "🃏 Empezar temprano no es urgencia. Es privilegio.",
+    "🌾 Sembrar no siempre se ve. Igual sirve. Buen día.",
 ]
-
-# GIFs que el Dealer manda los lunes después del mensaje motivador.
-# Editá esta lista con los GIFs que te gusten — pegá la URL pública
-# (de Tenor https://tenor.com/view/... o Giphy https://giphy.com/gifs/...).
-# Discord los autoembebe.
-GIFS_LUNES = [
-    "https://tenor.com/view/lets-do-this-monday-monday-motivation-motivation-gif-15745113",
-    "https://tenor.com/view/monday-morning-coffee-monday-mood-cat-gif-15068193",
-    "https://tenor.com/view/lunes-monday-mood-gif-22327921",
-    "https://tenor.com/view/feliz-lunes-feliz-inicio-de-semana-buen-dia-gif-25027706",
-    "https://tenor.com/view/monday-mood-monday-vibes-monday-energy-gif-25949881",
-]
-
 
 FRASES_RANDOM_DEALER = [
-    "🃏 Pausá un toque. Volvé a la mesa con cabeza fresca.",
-    "🎲 Si una tarea lleva más de 1 hora trabada, dejala marinar y pasá a otra.",
-    "☕ ¿Hace cuánto que no tomás agua? La casa observa.",
-    "💼 Una tarea sin fecha es una tarea sin compromiso. Pongan fecha.",
-    "🔥 La consistencia gana al heroismo. Una hora hoy > maratón el viernes.",
-    "🎯 ¿Tu próxima tarea está clara? Si no, te recomiendo abrir ClickUp.",
-    "✨ Si terminaste algo hoy, marcalo. Sentir el cierre es parte del trabajo.",
-    "🃏 El Dealer pasa a saludar. ¿Cómo va la mano?",
-    "🌿 Levantate, estirate, respirá. Es gratis y rinde.",
-    "📋 Una idea suelta hoy es una tarea bien capturada mañana. `/tarea` está ahí.",
-    "⚡ Enfocarse en 1 cosa por 25 min rinde más que 3 cosas en 2 horas.",
-    "🎶 Cambialé la música. El cerebro lo nota.",
-    "🃏 Tu yo de la noche te va a agradecer cerrar 1 tarea ahora.",
-    "💪 Si llegaste hasta acá del día, ya ganaste. Cerrá una más y rematás bien.",
-    "🪟 Asomate por la ventana 1 minuto. Vuelvas, retomá.",
-    "🍵 Recordatorio del Dealer: una pausa de 5 minutos no es perder tiempo, es invertirlo.",
-    "📵 Cerrá una pestaña. Cualquiera. Vas a respirar mejor.",
-    "🃏 Si la tarea que estás haciendo no la elegirías ahora con cabeza fresca, está bien parar.",
-    "🍊 Comé algo. Hidrate. Volvé en 10.",
-    "🔔 ¿Cuánto hace que no actualizás el estado de una tarea? Probablemente toca.",
-    "🪷 Multitarea es ilusión de productividad. Una a la vez.",
-    "🎭 Si te dispersaste, no te culpes. Anotá dónde estabas y volvé.",
-    "🌬️ Respiración 4-7-8: 4 segundos inhalando, 7 reteniendo, 8 exhalando. Probalo.",
-    "🃏 Pregunta del Dealer: ¿qué tarea de las abiertas te da más alivio cerrar hoy?",
-    "🧩 Si la tarea es muy grande, partila en dos. La grande no se termina; las chicas sí.",
-    "📊 ¿Mirás la lista de pendientes y no sabés por dónde? Elegí la más vieja. Suele ser la culpa silenciosa.",
-    "🍀 Recordatorio: el avance no se nota día a día. Se nota viernes a viernes.",
-    "🃏 El Dealer pregunta: ¿qué tarea importante estás esquivando? Esa misma.",
-    "🌊 Si te trabaste, cambiá de lugar. Caminá. La cabeza se desbloquea sola.",
-    "📞 ¿Hay algo que se resuelve con un mensaje de 30 segundos en vez de quedar en tu cabeza? Mándalo.",
-    "🪙 El éxito de hoy es haber sostenido el foco aunque sea 2 bloques de 25 min.",
-    "🎨 La perfección es enemiga del envío. Mandá la versión 80%.",
+    "🎴 Un pequeño impulso ahora se agradece mucho más tarde.",
+    "🃏 A veces la mejor decisión es hacer una pausa.",
+    "🌿 Estirate. El cuerpo te viene aguantando desde la mañana.",
+    "☕ Un vaso de agua, tres respiraciones profundas, y seguimos.",
+    "🕊️ Hay tareas que rinden más si primero les das aire.",
+    "🎵 Cambiá de canción. La cabeza lo agradece.",
+    "🃏 Caminá 3 minutos. Vuelvas más liviano.",
+    "☁️ Si estás en modo automático, apagalo un ratito.",
+    "🌱 Un paso pequeño en la dirección correcta ya es un buen día.",
+    "🎨 Terminar algo, aunque sea chico, alivia como pocas cosas.",
+    "☕ Un ratito lejos de la pantalla suele destrabar más que insistir.",
+    "🃏 A veces la solución aparece cuando dejamos de buscarla.",
+    "🌤️ Asomate a la ventana un minuto. El aire fresco cambia el ánimo.",
+    "🎴 Elegí una tarea abierta, la más chica. Cerrala. Sentí el clic.",
+    "🃏 Un respiro corto ahora rinde más que uno largo cuando ya no das más.",
+    "🌿 Tu cabeza rinde más si le das oxígeno.",
+    "☁️ Cuando algo se traba, a veces conviene dejarlo descansar y probar con otra cosa.",
+    "🎶 Los días buenos también piden respiros.",
+    "🃏 Cada bloque de foco que sostenés hoy es un pequeño triunfo. Sumá otro.",
+    "☕ Dejá la pestaña 12 abierta y andate a caminar 5 minutos.",
+    "🌱 A veces el mejor consejo es: comé algo.",
+    "🃏 Descansar es parte del trabajo, no lo contrario.",
+    "🕰️ Si sentís apuro, respirá tres veces. Y volvé.",
+    "🎴 Elegí la tarea que más alivio te va a dar cerrar. Empezá por ahí.",
+    "🃏 A veces hay que salir de la mesa para volver a ver el juego.",
+    "🌤️ Si tenés dudas, elegí lo más simple.",
+    "☕ El cuerpo también te está trabajando. Cuidalo un poco.",
+    "🎵 Si el aire está pesado, cambialo: música, ventana, o silencio.",
+    "🃏 Todo lo que hoy se sostiene con calma dura más.",
+    "🌾 Todo lo que hiciste hoy va sumando, aunque no lo veas todavía.",
+    "🎨 Los días que rinden distinto también rinden.",
+    "🃏 A veces avanzar es ordenar un poco antes de seguir.",
+    "🍃 No todo lo importante se ve en tu lista de tareas.",
+    "🌤️ Recordá: el ritmo que sostenés es más importante que el ritmo que empezás.",
+    "🃏 Cada cosa que cerrás hoy libera espacio para lo que viene mañana.",
 ]
 
 
@@ -149,8 +143,7 @@ class MotivationCog(commands.Cog):
         if not self.channel_id:
             log.warning("No hay DEALER_CHANNEL_ID configurado.")
             return
-        now = datetime.now(ARG_TZ)
-        if not _is_weekday(now):
+        if not _is_weekday(datetime.now(ARG_TZ)):
             return
         channel = self.bot.get_channel(self.channel_id)
         if not channel:
@@ -159,9 +152,6 @@ class MotivationCog(commands.Cog):
         frase = random.choice(FRASES_DEALER)
         try:
             await channel.send(frase)
-            # Bonus de lunes: GIF random para arrancar la semana
-            if now.weekday() == 0 and GIFS_LUNES:
-                await channel.send(random.choice(GIFS_LUNES))
         except discord.DiscordException as e:
             log.error(f"Error enviando motivación: {e}")
 
@@ -208,19 +198,6 @@ class MotivationCog(commands.Cog):
     )
     async def motivacion(self, interaction: discord.Interaction):
         await interaction.response.send_message(random.choice(FRASES_DEALER))
-
-    @app_commands.command(
-        name="gif-lunes",
-        description="Probar un GIF random del repertorio de lunes",
-    )
-    async def gif_lunes(self, interaction: discord.Interaction):
-        if not GIFS_LUNES:
-            await interaction.response.send_message(
-                "🃏 La baraja de GIFs de lunes está vacía. Editá `GIFS_LUNES` en `cogs/motivation.py`.",
-                ephemeral=True,
-            )
-            return
-        await interaction.response.send_message(random.choice(GIFS_LUNES))
 
 
 async def setup(bot: commands.Bot):
