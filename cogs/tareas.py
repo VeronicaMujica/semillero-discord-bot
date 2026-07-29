@@ -1,8 +1,8 @@
-import json
 import logging
+import os
 import time
 from datetime import datetime
-from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import discord
 from discord import app_commands
@@ -13,35 +13,26 @@ from user_mapping import get_clickup_id
 
 log = logging.getLogger(__name__)
 
-WORKSPACE_CONFIG_FILE = Path(__file__).resolve().parent.parent / "guild_workspace.json"
+ARG_TZ = ZoneInfo("America/Argentina/Buenos_Aires")
 
 PRIORITY_MAP = {"urgente": 1, "alta": 2, "normal": 3, "baja": 4}
 PRIORITY_COLOR = {"urgente": 0xE53935, "alta": 0xFB8C00, "normal": 0x1E88E5, "baja": 0x757575}
 PRIORITY_EMOJI = {"urgente": "🔴", "alta": "🟠", "normal": "🔵", "baja": "⚪"}
 
 
-def _load_workspaces() -> dict:
-    if WORKSPACE_CONFIG_FILE.exists():
-        with open(WORKSPACE_CONFIG_FILE, encoding="utf-8") as f:
-            return json.load(f)
-    return {}
-
-
-def _save_workspaces(data: dict):
-    log.info(f"Guardando workspaces en {WORKSPACE_CONFIG_FILE}: {data}")
-    try:
-        with open(WORKSPACE_CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        log.info("Workspaces guardados OK")
-    except Exception as e:
-        log.error(f"Fallo guardando workspaces: {e}")
-        raise
-
-
 def _parse_date_ms(date_str: str | None) -> int | None:
+    """Convierte 'YYYY-MM-DD' a epoch en ms, anclado al mediodía de Argentina.
+
+    El contenedor corre en UTC, así que un datetime naive a medianoche caía en
+    el día anterior para la cuenta de ClickUp (de ahí el "día de retraso").
+    Anclando al mediodía ART el timestamp cae SIEMPRE en el día correcto, sin
+    importar la zona horaria del servidor ni la de la cuenta de ClickUp.
+    """
     if not date_str:
         return None
-    dt = datetime.strptime(date_str, "%Y-%m-%d")
+    dt = datetime.strptime(date_str, "%Y-%m-%d").replace(
+        hour=12, minute=0, second=0, microsecond=0, tzinfo=ARG_TZ
+    )
     return int(dt.timestamp() * 1000)
 
 
@@ -61,25 +52,18 @@ class TareasCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.clickup = ClickUpClient()
-
-    def _team_id(self, guild_id: int | None) -> str | None:
-        if guild_id is None:
-            return None
-        return _load_workspaces().get(str(guild_id))
+        # Un solo workspace/tablero: ya no hace falta /configurar-workspace.
+        self.team_id = os.getenv("CLICKUP_TEAM_ID") or "9011755800"  # ronisa
+        self.default_list_id = os.getenv("CLICKUP_LIST_ID") or None
+        self.default_list_name = os.getenv("CLICKUP_LIST_NAME") or "Tablero principal"
 
     # ── Autocomplete ──────────────────────────────────────────────────────────
 
     async def _autocomplete_lista(
         self, interaction: discord.Interaction, current: str
     ) -> list[app_commands.Choice[str]]:
-        team_id = self._team_id(interaction.guild_id)
-        if not team_id:
-            return [app_commands.Choice(
-                name="⚠️ Primero usa /configurar-workspace",
-                value="__no_workspace__"
-            )]
         try:
-            lists = await self.clickup.get_all_lists(team_id)
+            lists = await self.clickup.get_all_lists(self.team_id)
             choices = []
             for lst in lists:
                 label = f"{lst['folder']} › {lst['name']}" if lst.get("folder") else lst["name"]
@@ -95,11 +79,8 @@ class TareasCog(commands.Cog):
     async def _autocomplete_responsable(
         self, interaction: discord.Interaction, current: str
     ) -> list[app_commands.Choice[str]]:
-        team_id = self._team_id(interaction.guild_id)
-        if not team_id:
-            return []
         try:
-            members = await self.clickup.get_members(team_id)
+            members = await self.clickup.get_members(self.team_id)
             choices = []
             for m in members:
                 if current.lower() in m["name"].lower():
@@ -116,11 +97,11 @@ class TareasCog(commands.Cog):
     @app_commands.command(name="tarea", description="Crear una tarea en ClickUp")
     @app_commands.describe(
         titulo="Nombre de la tarea",
-        lista="Tablero o lista donde crear la tarea",
         responsable="Persona asignada",
         descripcion="Descripción (opcional)",
         prioridad="Prioridad de la tarea",
         fecha_limite="Fecha límite en formato YYYY-MM-DD (opcional)",
+        lista="Tablero donde crear la tarea (opcional si hay tablero por defecto)",
     )
     @app_commands.autocomplete(lista=_autocomplete_lista, responsable=_autocomplete_responsable)
     @app_commands.choices(prioridad=[
@@ -133,30 +114,34 @@ class TareasCog(commands.Cog):
         self,
         interaction: discord.Interaction,
         titulo: str,
-        lista: str,
         responsable: str,
         descripcion: str | None = None,
         prioridad: app_commands.Choice[str] | None = None,
         fecha_limite: str | None = None,
+        lista: str | None = None,
     ):
-        if lista == "__no_workspace__":
-            await interaction.response.send_message(
-                "❌ Este servidor no tiene un workspace configurado. Usa `/configurar-workspace`.",
-                ephemeral=True,
+        await interaction.response.defer()
+
+        # Resolver tablero destino: el elegido, o el por defecto (CLICKUP_LIST_ID).
+        if lista:
+            list_id, list_name = _decode(lista)
+        elif self.default_list_id:
+            list_id, list_name = self.default_list_id, self.default_list_name
+        else:
+            await interaction.followup.send(
+                "❌ No hay un tablero por defecto configurado. Elegí uno en la opción "
+                "`lista`, o pedile a un admin que setee `CLICKUP_LIST_ID` en el `.env`."
             )
             return
-
-        await interaction.response.defer()
 
         try:
             due_ms = _parse_date_ms(fecha_limite)
         except ValueError:
             await interaction.followup.send(
-                "❌ La fecha debe estar en formato **YYYY-MM-DD** (ej: `2025-04-30`)."
+                "❌ La fecha debe estar en formato **YYYY-MM-DD** (ej: `2026-07-30`)."
             )
             return
 
-        list_id, list_name = _decode(lista)
         user_id_str, user_name = _decode(responsable)
         priority_int = PRIORITY_MAP.get(prioridad.value) if prioridad else None
 
@@ -168,6 +153,7 @@ class TareasCog(commands.Cog):
                 assignees=[int(user_id_str)] if user_id_str.isdigit() else [],
                 priority=priority_int,
                 due_date=due_ms,
+                due_date_time=False if due_ms is not None else None,
             )
         except ClickUpAPIError as e:
             await interaction.followup.send(f"❌ Error en ClickUp:\n```{e}```")
@@ -221,17 +207,9 @@ class TareasCog(commands.Cog):
             )
             return
 
-        team_id = self._team_id(interaction.guild_id)
-        if not team_id:
-            await interaction.followup.send(
-                "❌ Este servidor no tiene workspace configurado. Usá `/configurar-workspace`.",
-                ephemeral=True,
-            )
-            return
-
         try:
             tasks = await self.clickup.get_all_team_tasks(
-                team_id,
+                self.team_id,
                 assignee_ids=[clickup_id],
                 include_closed=False,
             )
@@ -261,72 +239,6 @@ class TareasCog(commands.Cog):
             lineas.append(f"\n_…y {len(tasks) - 15} más._")
 
         await interaction.followup.send("\n".join(lineas), ephemeral=True)
-
-    # ── /configurar-workspace ─────────────────────────────────────────────────
-
-    @app_commands.command(
-        name="configurar-workspace",
-        description="Vincular este servidor a un workspace de ClickUp (solo admins)",
-    )
-    @app_commands.default_permissions(administrator=True)
-    async def configurar_workspace(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-
-        try:
-            teams = await self.clickup.get_teams()
-        except Exception as e:
-            await interaction.followup.send(f"❌ No pude conectarme a ClickUp:\n```{e}```", ephemeral=True)
-            return
-
-        if not teams:
-            await interaction.followup.send("❌ No se encontraron workspaces.", ephemeral=True)
-            return
-
-        current_id = self._team_id(interaction.guild_id)
-        current_name = next((t["name"] for t in teams if str(t["id"]) == current_id), None)
-        hint = f"\n\n*Workspace actual: **{current_name}***" if current_name else ""
-
-        view = _WorkspaceSelectView(teams, interaction.guild_id)
-        await interaction.followup.send(
-            f"Selecciona el workspace de ClickUp para **{interaction.guild.name}**:{hint}",
-            view=view,
-            ephemeral=True,
-        )
-
-
-class _WorkspaceSelectView(discord.ui.View):
-    def __init__(self, teams: list, guild_id: int):
-        super().__init__(timeout=60)
-        self.guild_id = guild_id
-        options = [
-            discord.SelectOption(label=t["name"][:100], value=str(t["id"]))
-            for t in teams
-        ]
-        select = discord.ui.Select(placeholder="Elige un workspace...", options=options)
-        select.callback = self._on_select
-        self.add_item(select)
-
-    async def _on_select(self, interaction: discord.Interaction):
-        try:
-            team_id = interaction.data["values"][0]
-            log.info(f"_on_select: guild_id={self.guild_id}, team_id={team_id}")
-            data = _load_workspaces()
-            data[str(self.guild_id)] = team_id
-            _save_workspaces(data)
-            await interaction.response.edit_message(
-                content=f"✅ Workspace vinculado (`{team_id}`).\nYa puedes usar `/tarea` en este servidor.",
-                view=None,
-            )
-        except Exception as e:
-            log.exception("Error en _on_select")
-            try:
-                await interaction.response.send_message(
-                    f"❌ Error guardando workspace: `{e}`", ephemeral=True
-                )
-            except discord.InteractionResponded:
-                await interaction.followup.send(
-                    f"❌ Error guardando workspace: `{e}`", ephemeral=True
-                )
 
 
 async def setup(bot: commands.Bot):

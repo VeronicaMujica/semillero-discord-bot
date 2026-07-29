@@ -135,6 +135,7 @@ class ClickUpClient:
         assignees: list[int] | None = None,
         priority: int | None = None,
         due_date: int | None = None,
+        due_date_time: bool | None = None,
         tags: list[str] | None = None,
     ) -> dict:
         payload: dict = {"name": name, "description": description}
@@ -144,6 +145,9 @@ class ClickUpClient:
             payload["priority"] = priority
         if due_date is not None:
             payload["due_date"] = due_date
+            # due_date_time=False → ClickUp muestra solo la fecha (sin hora).
+            if due_date_time is not None:
+                payload["due_date_time"] = due_date_time
         if tags:
             payload["tags"] = tags
 
