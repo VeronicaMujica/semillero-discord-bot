@@ -23,9 +23,6 @@ PRIORITY_MAP = {"urgente": 1, "alta": 2, "normal": 3, "baja": 4}
 PRIORITY_COLOR = {"urgente": 0xE53935, "alta": 0xFB8C00, "normal": 0x1E88E5, "baja": 0x757575}
 PRIORITY_EMOJI = {"urgente": "🔴", "alta": "🟠", "normal": "🔵", "baja": "⚪"}
 
-# Valor centinela que devuelve el autocomplete mientras la cache está fría.
-LOADING_SENTINEL = "__loading__"
-
 
 def _parse_date_ms(date_str: str | None) -> int | None:
     """Convierte 'YYYY-MM-DD' a epoch en ms, anclado al mediodía de Argentina.
@@ -59,22 +56,23 @@ class TareasCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.clickup = ClickUpClient()
-        # Un solo workspace/tablero: ya no hace falta /configurar-workspace.
+        # Un solo workspace: ya no hace falta /configurar-workspace.
         self.team_id = os.getenv("CLICKUP_TEAM_ID") or "9011755800"  # ronisa
-        self.default_list_id = os.getenv("CLICKUP_LIST_ID") or None
-        self.default_list_name = os.getenv("CLICKUP_LIST_NAME") or "Tablero general"
 
         # Cache en memoria para que el autocomplete responda YA (sin esperar a
         # ClickUp). Se precarga al arrancar y se refresca en segundo plano, así
-        # nunca se queda esperando la API ni "falla la primera vez".
+        # el listado de tableros de ronisa no "falla la primera vez".
         self._lists_cache: list[dict] = []
         self._members_cache: list[dict] = []
-        self._refresh_task: asyncio.Task | None = None
+        self._refresh_task = None
 
     # ── Ciclo de vida: precarga en segundo plano ───────────────────────────────
 
     async def cog_load(self):
-        self._refresh_task = asyncio.create_task(self._refresh_loop())
+        try:
+            self._refresh_task = asyncio.create_task(self._refresh_loop())
+        except Exception as e:
+            log.warning(f"No pude iniciar la precarga de /tarea: {e}")
 
     def cog_unload(self):
         if self._refresh_task and not self._refresh_task.done():
@@ -104,60 +102,71 @@ class TareasCog(commands.Cog):
         except Exception as e:
             log.warning(f"No pude precargar el autocomplete de /tarea: {e}")
 
-    # ── Autocomplete (lee de la cache en memoria, nunca bloquea) ────────────────
+    # ── Autocomplete (cache-first, con fallback en vivo; nunca rompe) ───────────
 
     async def _autocomplete_lista(
         self, interaction: discord.Interaction, current: str
     ) -> list[app_commands.Choice[str]]:
-        data = self._lists_cache
-        if not data:
-            # Cache fría (recién arrancó el bot): disparo una carga y respondo YA
-            # con un aviso, sin dejar el comando colgado ni obligar a repetirlo.
-            asyncio.create_task(self._safe_refresh())
-            return [app_commands.Choice(
-                name="⏳ Cargando tableros… reabrí esta opción, o dejá vacío para Tablero general",
-                value=LOADING_SENTINEL,
-            )]
-        needle = current.lower()
-        choices = []
-        for lst in data:
-            label = f"{lst['folder']} › {lst['name']}" if lst.get("folder") else lst["name"]
-            if needle in label.lower():
-                choices.append(app_commands.Choice(
-                    name=label[:100],
-                    value=_encode(lst["id"], lst["name"]),
-                ))
-        return choices[:25]
+        try:
+            data = self._lists_cache
+            if not data:
+                # Cache aún fría: la traigo en vivo (como antes) y la guardo.
+                data = await self.clickup.get_all_lists(self.team_id)
+                if data:
+                    self._lists_cache = data
+            needle = current.lower()
+            choices: list[app_commands.Choice[str]] = []
+            for lst in data:
+                name = (lst.get("name") or "").strip()
+                if not name:
+                    continue
+                label = f"{lst['folder']} › {name}" if lst.get("folder") else name
+                if needle in label.lower():
+                    choices.append(app_commands.Choice(
+                        name=label[:100],
+                        value=_encode(str(lst["id"]), name),
+                    ))
+                    if len(choices) >= 25:
+                        break
+            return choices
+        except Exception as e:
+            log.warning(f"autocomplete /tarea lista: {e}")
+            return []
 
     async def _autocomplete_responsable(
         self, interaction: discord.Interaction, current: str
     ) -> list[app_commands.Choice[str]]:
-        data = self._members_cache
-        if not data:
-            # Miembros es una sola llamada rápida: la resolvemos al vuelo.
-            try:
+        try:
+            data = self._members_cache
+            if not data:
                 data = await self.clickup.get_members(self.team_id)
                 if data:
                     self._members_cache = data
-            except Exception:
-                return []
-        needle = current.lower()
-        choices = []
-        for m in data:
-            if needle in m["name"].lower():
-                choices.append(app_commands.Choice(
-                    name=m["name"][:100],
-                    value=_encode(str(m["id"]), m["name"]),
-                ))
-        return choices[:25]
+            needle = current.lower()
+            choices: list[app_commands.Choice[str]] = []
+            for m in data:
+                name = (m.get("name") or "").strip()
+                if not name:
+                    continue
+                if needle in name.lower():
+                    choices.append(app_commands.Choice(
+                        name=name[:100],
+                        value=_encode(str(m["id"]), name),
+                    ))
+                    if len(choices) >= 25:
+                        break
+            return choices
+        except Exception as e:
+            log.warning(f"autocomplete /tarea responsable: {e}")
+            return []
 
     # ── /tarea ────────────────────────────────────────────────────────────────
 
     @app_commands.command(name="tarea", description="Crear una tarea en ClickUp")
     @app_commands.describe(
         titulo="Nombre de la tarea",
+        lista="Tablero o lista de ClickUp donde crear la tarea",
         responsable="Persona asignada",
-        lista="Tablero donde crear la tarea (si lo dejás vacío, va a Tablero general)",
         descripcion="Descripción (opcional)",
         prioridad="Prioridad de la tarea",
         fecha_limite="Fecha límite en formato YYYY-MM-DD (opcional)",
@@ -173,24 +182,15 @@ class TareasCog(commands.Cog):
         self,
         interaction: discord.Interaction,
         titulo: str,
+        lista: str,
         responsable: str,
-        lista: str | None = None,
         descripcion: str | None = None,
         prioridad: app_commands.Choice[str] | None = None,
         fecha_limite: str | None = None,
     ):
         await interaction.response.defer()
 
-        # Resolver tablero destino: el elegido, o el por defecto (Tablero general).
-        if lista and lista != LOADING_SENTINEL:
-            list_id, list_name = _decode(lista)
-        elif self.default_list_id:
-            list_id, list_name = self.default_list_id, self.default_list_name
-        else:
-            await interaction.followup.send(
-                "❌ Elegí un tablero en la opción **lista** para que la tarea se cree en ese espacio."
-            )
-            return
+        list_id, list_name = _decode(lista)
 
         try:
             due_ms = _parse_date_ms(fecha_limite)
