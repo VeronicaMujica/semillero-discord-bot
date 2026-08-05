@@ -196,3 +196,82 @@ class ClickUpClient:
             if page > 20:
                 break
         return all_tasks
+
+    # ------------------------------------------------------------------ #
+    # Docs API (v3) — para informes semanales/mensuales por persona.     #
+    # La v3 usa /api/v3/workspaces/{team_id}/... (base distinta a la v2).#
+    # ------------------------------------------------------------------ #
+    async def _request_v3(self, method: str, path: str, *, params=None, json_body=None):
+        url = f"https://api.clickup.com/api/v3{path}"
+        timeout = aiohttp.ClientTimeout(total=30)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.request(
+                method, url, params=params, json=json_body, headers=self.headers
+            ) as resp:
+                text = await resp.text()
+                if resp.status not in (200, 201):
+                    raise ClickUpAPIError(f"ClickUp v3 devolvió {resp.status}: {text}")
+                return await resp.json() if text else {}
+
+    async def search_docs(self, team_id: str) -> list[dict]:
+        """Lista todos los Docs del workspace (paginado por cursor)."""
+        docs: list[dict] = []
+        cursor: str | None = None
+        for _ in range(50):  # tope de seguridad
+            params = {"limit": "100"}
+            if cursor:
+                params["next_cursor"] = cursor
+            data = await self._request_v3(
+                "GET", f"/workspaces/{team_id}/docs", params=params
+            )
+            docs.extend(data.get("docs", []))
+            cursor = data.get("next_cursor")
+            if not cursor:
+                break
+        return docs
+
+    async def create_doc(
+        self,
+        team_id: str,
+        name: str,
+        parent_id: str,
+        parent_type: int = 4,  # 4 = Space
+        visibility: str = "PUBLIC",
+        create_page: bool = False,
+    ) -> dict:
+        payload = {
+            "name": name,
+            "parent": {"id": str(parent_id), "type": parent_type},
+            "visibility": visibility,
+            "create_page": create_page,
+        }
+        return await self._request_v3(
+            "POST", f"/workspaces/{team_id}/docs", json_body=payload
+        )
+
+    async def get_doc_page_listing(self, team_id: str, doc_id: str) -> list[dict]:
+        """Árbol de páginas del Doc (cada nodo trae sus hijos en 'pages')."""
+        data = await self._request_v3(
+            "GET", f"/workspaces/{team_id}/docs/{doc_id}/pageListing"
+        )
+        return data if isinstance(data, list) else data.get("pages", [])
+
+    async def create_doc_page(
+        self,
+        team_id: str,
+        doc_id: str,
+        name: str,
+        parent_page_id: str | None = None,
+        content: str = "",
+        content_format: str = "text/md",
+    ) -> dict:
+        payload: dict = {
+            "name": name,
+            "content": content,
+            "content_format": content_format,
+        }
+        if parent_page_id:
+            payload["parent_page_id"] = parent_page_id
+        return await self._request_v3(
+            "POST", f"/workspaces/{team_id}/docs/{doc_id}/pages", json_body=payload
+        )
