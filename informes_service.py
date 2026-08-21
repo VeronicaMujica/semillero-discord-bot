@@ -6,11 +6,11 @@ Estructura creada:
   Informes semanales   (Doc en el Space "MESA ALTA")
     └─ Agosto           (página mes)
         └─ Semana del 3 al 7   (página semana, Lun–Vie)
-            ├─ Vero  ├─ Rogger ├─ Rochi ├─ Cami ├─ Sofi ├─ Ron ├─ Isa
+            ├─ Vero  ├─ Rog ├─ Rochi ├─ Cami ├─ Sofi ├─ Ron ├─ Isa ├─ Nicky
 
   Informes mensuales
     └─ Agosto
-        ├─ Vero  ├─ Rogger ├─ Rochi ├─ Cami ├─ Sofi ├─ Ron ├─ Isa
+        ├─ Vero  ├─ Rog ├─ Rochi ├─ Cami ├─ Sofi ├─ Ron ├─ Isa ├─ Nicky
 
 Cada página de persona nace con una plantilla (semanal o mensual) ya
 personalizada con su nombre completo y la fecha de la semana/mes.
@@ -19,6 +19,11 @@ Idempotente: antes de crear cualquier página se consulta el árbol existente y
 solo se crea lo que falta. NUNCA edita páginas ya existentes (para no pisar lo
 que la gente ya cargó). Es clave porque la API v3 de ClickUp NO permite borrar
 Docs (DELETE → 405).
+
+Para la corrida automática de los lunes se usa `asegurar_mes`, que NO regenera
+si el mes ya existe: devuelve el DEEP LINK a la página de la semana en curso
+(ej. .../v/dc/{doc}/{pagina-semana}). `generar_mes` queda para forzar/crear a
+mano (comando de admin).
 
 Notas de formato ClickUp (aprendidas probando):
   • Los encabezados `##` generan el índice lateral navegable del Doc.
@@ -37,18 +42,35 @@ log = logging.getLogger(__name__)
 TEAM_ID = os.getenv("CLICKUP_TEAM_ID", "9011755800")              # ronisa
 SPACE_ID = os.getenv("CLICKUP_INFORMES_SPACE_ID", "90112750025")  # MESA ALTA
 
+# Nombre canónico de cada Doc. OJO: en ClickUp los renombraron a mano con un
+# sufijo de emoji (ej. "Informes semanales 📝"). Para reutilizarlos y NO crear
+# duplicados, `_ensure_doc` matchea por prefijo (ignora ese sufijo).
 DOC_SEMANALES = "Informes semanales"
 DOC_MENSUALES = "Informes mensuales"
 
 # Nombre corto (título de la página) -> nombre completo (dentro del reporte).
 PERSONAS: dict[str, str] = {
     "Vero": "Verónica Mujica",
-    "Rogger": "Roggert Bernal",
+    "Rog": "Roggert Bernal",
     "Rochi": "Rocío Ojeda",
     "Cami": "Camila Torres",
     "Sofi": "Sofía Lantieri",
     "Ron": "Ronald Vargas",
     "Isa": "Isabella Lantieri",
+    # Nicky todavía no se unió a ClickUp → aún no tenemos su nombre completo.
+    # Placeholder para crear su espacio de agosto ya mismo. Cuando entre a
+    # ClickUp, reemplazá "Nicky" por su nombre completo: los meses siguientes lo
+    # usarán solos. Agosto queda como está (el generador es idempotente y nunca
+    # repisa una página ya creada).
+    "Nicky": "Nicky",
+}
+
+# Alias de títulos históricos: algunas páginas viejas quedaron con otro nick para
+# la MISMA persona (ej. "Rogger" / "Roggert", hoy unificado como "Rog"). Se
+# normalizan solo para RECONOCER la página existente y no duplicarla.
+TITULO_ALIAS: dict[str, str] = {
+    "rogger": "rog",
+    "roggert": "rog",
 }
 
 MESES = [
@@ -72,20 +94,27 @@ SECCIONES_SEMANAL = [
 
 SECCIONES_MENSUAL = [
     "🎯 Objetivos del mes",
-    "🧭 Desglose general del mes",
-    "✅ Logros y tareas finalizadas",
-    "🔄 En proceso / continúa el próximo mes",
-    "⛔ Estancado (y por qué)",
-    "📈 KPIs / Resultados",
+    "✅ Tareas finalizadas",
+    "🔄 Tareas en proceso",
+    "⛔ Tareas estancadas y por qué",
+    "🚀 Tareas por empezar",
     "🌟 ¿Qué ha ido bien este mes?",
-    "🔧 ¿Qué puedo mejorar el próximo mes?",
+    "🔧 ¿Qué puedo mejorar este mes?",
     "💭 Sensaciones del mes",
 ]
 
 
 def doc_url(doc_id: str) -> str:
-    """Link web al Doc (formato ClickUp 3.0)."""
+    """Link web al Doc completo (formato ClickUp 3.0)."""
     return f"https://app.clickup.com/{TEAM_ID}/docs/{doc_id}"
+
+
+def page_url(doc_id: str, page_id: str) -> str:
+    """Deep link a una página puntual dentro de un Doc (vista 'v/dc' de ClickUp).
+
+    Ej.: https://app.clickup.com/9011755800/v/dc/8cj8yrr-4431/8cj8yrr-6611
+    """
+    return f"https://app.clickup.com/{TEAM_ID}/v/dc/{doc_id}/{page_id}"
 
 
 # --------------------------------------------------------------------------- #
@@ -154,19 +183,33 @@ def semana_actual(hoy: dt.date) -> tuple[str, dt.date, dt.date]:
 # --------------------------------------------------------------------------- #
 # Helpers de árbol (pageListing)                                              #
 # --------------------------------------------------------------------------- #
-def _find_child(nodes: list[dict] | None, nombre: str) -> dict | None:
+def _norm_titulo(nombre: str) -> str:
+    """casefold + alias, para reconocer nicks históricos (ej. Roggert→Rog)."""
     key = nombre.strip().casefold()
+    return TITULO_ALIAS.get(key, key)
+
+
+def _find_child(nodes: list[dict] | None, nombre: str) -> dict | None:
+    key = _norm_titulo(nombre)
     for n in nodes or []:
-        if (n.get("name") or "").strip().casefold() == key:
+        if _norm_titulo(n.get("name") or "") == key:
             return n
     return None
 
 
 async def _ensure_doc(client, nombre: str) -> tuple[str, bool]:
-    """Devuelve (doc_id, creado?). Reutiliza por nombre; si no existe, lo crea."""
+    """Devuelve (doc_id, creado?). Reutiliza por nombre; si no existe, lo crea.
+
+    Match por prefijo (casefold): el Doc vivo puede tener un sufijo agregado a
+    mano (ej. "Informes semanales 📝"). Si matcheáramos exacto, no lo encontraría
+    y crearía un Doc DUPLICADO en cada corrida. Por eso aceptamos que el nombre
+    vivo EMPIECE con el nombre canónico.
+    """
+    objetivo = nombre.strip().casefold()
     docs = await client.search_docs(TEAM_ID)
     for d in docs:
-        if (d.get("name") or "").strip().casefold() == nombre.strip().casefold():
+        vivo = (d.get("name") or "").strip().casefold()
+        if vivo == objetivo or vivo.startswith(objetivo):
             return d["id"], False
     d = await client.create_doc(TEAM_ID, nombre, SPACE_ID, parent_type=4)
     log.info("Doc creado: %s (%s)", nombre, d.get("id"))
@@ -238,7 +281,11 @@ async def construir_mensuales(client, year: int, month: int) -> dict:
 
 
 async def generar_mes(client, year: int, month: int) -> dict:
-    """Genera/asegura ambos Docs para el mes indicado. Idempotente."""
+    """Genera/asegura ambos Docs para el mes indicado. Idempotente.
+
+    Fuerza el recorrido completo (crea lo que falte). Para la corrida de los
+    lunes usar `asegurar_mes`, que ni siquiera recorre si el mes ya existe.
+    """
     sem = await construir_semanales(client, year, month)
     men = await construir_mensuales(client, year, month)
     total = sem["creadas"] + men["creadas"]
@@ -247,4 +294,59 @@ async def generar_mes(client, year: int, month: int) -> dict:
         MESES[month], year, total, sem["creadas"], men["creadas"],
     )
     return {"mes": MESES[month], "year": year, "semanales": sem, "mensuales": men,
-            "total_creadas": total}
+            "total_creadas": total, "ya_existia": total == 0}
+
+
+# --------------------------------------------------------------------------- #
+# Corrida de los lunes: link a la semana en curso, sin regenerar               #
+# --------------------------------------------------------------------------- #
+async def asegurar_mes(client, hoy: dt.date) -> dict:
+    """
+    Devuelve los links para el aviso del lunes SIN regenerar si el mes ya existe.
+
+    • semanal → DEEP LINK a la página de la semana en curso (según `hoy`).
+    • mensual → deep link a la página del mes.
+    Si el mes todavía no existe (primer lunes del mes), lo genera una sola vez
+    con `generar_mes` (idempotente) y recién ahí arma los links.
+    Fallback defensivo: si no encuentra la página puntual, cae a la del mes y,
+    en último caso, al Doc completo.
+    """
+    year, month = hoy.year, hoy.month
+    label, _lun, _vie = semana_actual(hoy)
+
+    sem_id, _ = await _ensure_doc(client, DOC_SEMANALES)
+    men_id, _ = await _ensure_doc(client, DOC_MENSUALES)
+
+    sem_mes = _find_child(await client.get_doc_page_listing(TEAM_ID, sem_id), MESES[month])
+    men_mes = _find_child(await client.get_doc_page_listing(TEAM_ID, men_id), MESES[month])
+
+    if sem_mes and men_mes:
+        ya_existia, creadas = True, 0
+    else:
+        creadas = (await generar_mes(client, year, month))["total_creadas"]
+        ya_existia = False
+        sem_mes = _find_child(await client.get_doc_page_listing(TEAM_ID, sem_id), MESES[month])
+        men_mes = _find_child(await client.get_doc_page_listing(TEAM_ID, men_id), MESES[month])
+
+    # Semanal → página de la semana en curso (fallback: página del mes → Doc).
+    semana_node = _find_child(sem_mes.get("pages") if sem_mes else None, label)
+    if semana_node:
+        sem_url = page_url(sem_id, semana_node["id"])
+    elif sem_mes:
+        sem_url = page_url(sem_id, sem_mes["id"])
+    else:
+        sem_url = doc_url(sem_id)
+
+    # Mensual → página del mes (fallback: Doc).
+    men_url = page_url(men_id, men_mes["id"]) if men_mes else doc_url(men_id)
+
+    log.info(
+        "asegurar_mes %s %s: ya_existia=%s, semana='%s' → %s",
+        MESES[month], year, ya_existia, label, sem_url,
+    )
+    return {
+        "mes": MESES[month], "year": year, "semana": label,
+        "ya_existia": ya_existia, "total_creadas": creadas,
+        "semanales": {"url": sem_url, "doc_id": sem_id},
+        "mensuales": {"url": men_url, "doc_id": men_id},
+    }

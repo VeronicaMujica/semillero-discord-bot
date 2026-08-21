@@ -12,7 +12,13 @@
       "Bash(docker compose *)",
       "Bash(echo \"---exit:$?---\")",
       "Bash(docker exec *)",
-      "Bash(py -3 -c \"import py_compile; import os; os.chdir\\(r'C:/Users/Administrador/Desktop/semillero-discord-bot'\\); [py_compile.compile\\(f, doraise=True\\) for f in ['bot.py','cogs/tareas.py','cogs/reminders.py','cogs/resumen.py']]; print\\('OK'\\)\")"
+      "Bash(py -3 -c \"import py_compile; import os; os.chdir\\(r'C:/Users/Administrador/Desktop/semillero-discord-bot'\\); [py_compile.compile\\(f, doraise=True\\) for f in ['bot.py','cogs/tareas.py','cogs/reminders.py','cogs/resumen.py']]; print\\('OK'\\)\")",
+      "Bash(node _build.mjs)",
+      "Bash(node -e ' *)",
+      "Bash(node -e 'const fs=require\\(\"fs\"\\);const R=fs.readFileSync\\(\"C:/Users/Administrador/Downloads/revisar_productos.csv\",\"utf8\"\\).split\\(/\\\\r\\\\n/\\);console.log\\(R.find\\(l=>l.startsWith\\(\"5;\"\\)\\)\\);')",
+      "Bash(node -e 'const fs=require\\(\"fs\"\\);let s=fs.readFileSync\\(\"_build.mjs\",\"utf8\"\\);const b=s.length;s=s.replace\\(\"[/\\\\\\\\bElimin Olores Ca\\\\u00f1\\\\\\\\b/gi,\",\"[/Elimin Olores Ca\\\\u00f1/gi,\"\\);fs.writeFileSync\\(\"_build.mjs\",s\\);console.log\\(\"chars removed:\",b-s.length\\);')",
+      "Bash(node -e 'const fs=require\\(\"fs\"\\);const R=fs.readFileSync\\(\"C:/Users/Administrador/Downloads/revisar_productos.csv\",\"utf8\"\\).split\\(/\\\\r\\\\n/\\);console.log\\(\"ref5 =>\",R.find\\(l=>l.startsWith\\(\"5;\"\\)\\)\\);console.log\\(\"Sin codigo:\",R.filter\\(l=>/FALTA CÓDIGO/.test\\(l\\)\\).length,\"| Categoria a confirmar:\",R.filter\\(l=>/CATEGOR/.test\\(l\\)\\).length\\);')",
+      "Bash(PYTHONIOENCODING=utf-8 py -c \"import ast; ast.parse\\(open\\('informes_service.py',encoding='utf-8'\\).read\\(\\)\\); print\\('OK sintaxis informes_service.py'\\)\")"
     ]
   }
 }

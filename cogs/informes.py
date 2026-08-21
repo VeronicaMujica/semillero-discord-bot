@@ -9,7 +9,7 @@ from discord.ext import commands
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from clickup_client import ClickUpClient, ClickUpAPIError
-from informes_service import MESES, PERSONAS, generar_mes, semana_actual
+from informes_service import MESES, PERSONAS, asegurar_mes, generar_mes, semana_actual
 
 log = logging.getLogger(__name__)
 
@@ -23,9 +23,9 @@ class InformesCog(commands.Cog):
       • "Informes mensuales" → Mes → página por persona
 
     Automatización (idempotente, nunca duplica):
-      • Cada LUNES 06:00 ART → asegura la estructura del mes/semana en curso
-        y avisa en el canal de reminders con el link al Doc.
-    Y a mano: /generar-informes [mes] [año] (solo admins).
+      • Cada LUNES 11:00 ART → si el mes ya está generado, NO recrea nada;
+        manda el DEEP LINK a la página de la semana en curso. Si falta, lo genera.
+    Y a mano: /generar-informes [mes] [año] (solo admins, fuerza la creación).
     """
 
     def __init__(self, bot: commands.Bot):
@@ -40,26 +40,28 @@ class InformesCog(commands.Cog):
 
     async def cog_load(self):
         self.scheduler.add_job(
-            self._job_lunes, "cron", day_of_week="mon", hour=6, minute=0,
+            self._job_lunes, "cron", day_of_week="mon", hour=11, minute=0,
             id="informes_lunes", replace_existing=True,
         )
         self.scheduler.start()
-        log.info("InformesCog scheduler iniciado (lunes 06:00 ART).")
+        log.info("InformesCog scheduler iniciado (lunes 11:00 ART).")
 
     def cog_unload(self):
         if self.scheduler.running:
             self.scheduler.shutdown(wait=False)
 
     async def _job_lunes(self):
-        hoy = dt.datetime.now(ARG_TZ)
+        hoy = dt.datetime.now(ARG_TZ).date()
         try:
-            res = await generar_mes(self.client, hoy.year, hoy.month)
+            # asegurar_mes NO regenera si el mes ya existe: devuelve el deep link
+            # a la página de la semana en curso.
+            res = await asegurar_mes(self.client, hoy)
         except ClickUpAPIError as e:
-            log.error("InformesCog: error generando informes: %s", e)
+            log.error("InformesCog: error asegurando informes: %s", e)
             return
-        await self._avisar_semana(hoy.date(), res)
+        await self._avisar_semana(res)
 
-    async def _avisar_semana(self, hoy: dt.date, res: dict):
+    async def _avisar_semana(self, res: dict):
         if not self.channel_id:
             log.warning("InformesCog: sin canal para avisar (DEALER_CHANNEL_ID).")
             return
@@ -68,14 +70,11 @@ class InformesCog(commands.Cog):
             log.warning("InformesCog: canal %s no encontrado.", self.channel_id)
             return
 
-        label, _lun, _vie = semana_actual(hoy)
-        url_sem = res["semanales"]["url"]
-        url_men = res["mensuales"]["url"]
         mensaje = (
             f"🃏 **Arranca la semana, arranca la mano.**\n"
-            f"Ya está el informe de la **{label}** listo para cargar 👇\n"
-            f"📄 Semanales → {url_sem}\n"
-            f"📅 Mensual de {res['mes']} → {url_men}\n"
+            f"Ya está el informe de la **{res['semana']}** listo para cargar 👇\n"
+            f"📄 Semanal → {res['semanales']['url']}\n"
+            f"📅 Mensual de {res['mes']} → {res['mensuales']['url']}\n"
             f"Dejá tus cartas sobre la mesa. 📊"
         )
         try:
