@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -12,13 +13,30 @@ jobs:
     steps:
       - name: Deploy over SSH using key
         uses: appleboy/ssh-action@v1
+        env:
+          CLICKUP_API_TOKEN: ${{ secrets.CLICKUP_API_TOKEN }}
         with:
           host: "66.94.116.153"
           username: "semillero"
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: 22
+          envs: CLICKUP_API_TOKEN
           script: |
+            set -e
             cd ~/apps/semillero-discord-bot
             git pull
+
+            # Sincroniza el token de ClickUp desde los secrets de GitHub.
+            # Si el secret no existe, no toca nada y deja el .env como estaba.
+            if [ -n "$CLICKUP_API_TOKEN" ]; then
+              cp .env ".env.bak.$(date +%Y%m%d%H%M%S)"
+              grep -v '^CLICKUP_API_TOKEN=' .env > .env.tmp || true
+              echo "CLICKUP_API_TOKEN=$CLICKUP_API_TOKEN" >> .env.tmp
+              mv .env.tmp .env
+              echo "CLICKUP_API_TOKEN sincronizado desde GitHub secrets"
+            else
+              echo "Sin secret CLICKUP_API_TOKEN: se mantiene el .env del servidor"
+            fi
+
             docker compose down || true
             docker compose up -d --build
