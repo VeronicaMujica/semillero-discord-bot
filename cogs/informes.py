@@ -23,8 +23,9 @@ class InformesCog(commands.Cog):
       • "Informes mensuales" → Mes → página por persona
 
     Automatización (idempotente, nunca duplica):
-      • Cada LUNES 11:00 ART → si el mes ya está generado, NO recrea nada;
-        manda el DEEP LINK a la página de la semana en curso. Si falta, lo genera.
+      • Cada LUNES 10:30 ART → asegura la semana en curso (autorreparando lo
+        que falte) y manda el DEEP LINK a esa página. Si la semana cruza de mes,
+        adelanta también el mes siguiente.
     Y a mano: /generar-informes [mes] [año] (solo admins, fuerza la creación).
     """
 
@@ -40,11 +41,11 @@ class InformesCog(commands.Cog):
 
     async def cog_load(self):
         self.scheduler.add_job(
-            self._job_lunes, "cron", day_of_week="mon", hour=11, minute=0,
+            self._job_lunes, "cron", day_of_week="mon", hour=10, minute=30,
             id="informes_lunes", replace_existing=True,
         )
         self.scheduler.start()
-        log.info("InformesCog scheduler iniciado (lunes 11:00 ART).")
+        log.info("InformesCog scheduler iniciado (lunes 10:30 ART).")
 
     def cog_unload(self):
         if self.scheduler.running:
@@ -53,28 +54,58 @@ class InformesCog(commands.Cog):
     async def _job_lunes(self):
         hoy = dt.datetime.now(ARG_TZ).date()
         try:
-            # asegurar_mes NO regenera si el mes ya existe: devuelve el deep link
-            # a la página de la semana en curso.
+            # asegurar_mes autorrepara lo que falte y devuelve el deep link a la
+            # página de la semana en curso.
             res = await asegurar_mes(self.client, hoy)
         except ClickUpAPIError as e:
+            # Antes esto era un `return` mudo: cuando venció el token de ClickUp
+            # el lunes no llegó ningún mensaje y nadie se enteró. Ahora avisa.
             log.error("InformesCog: error asegurando informes: %s", e)
+            await self._avisar_error(e)
+            return
+        except Exception:
+            log.exception("InformesCog: error inesperado en el job de los lunes")
             return
         await self._avisar_semana(res)
 
-    async def _avisar_semana(self, res: dict):
+    async def _canal(self):
         if not self.channel_id:
             log.warning("InformesCog: sin canal para avisar (DEALER_CHANNEL_ID).")
-            return
+            return None
         canal = self.bot.get_channel(self.channel_id)
         if not canal:
             log.warning("InformesCog: canal %s no encontrado.", self.channel_id)
+        return canal
+
+    async def _avisar_error(self, err: Exception):
+        canal = await self._canal()
+        if not canal:
+            return
+        detalle = str(err)[:300]
+        pista = ""
+        if "401" in detalle or "OAUTH" in detalle.upper() or "Token invalid" in detalle:
+            pista = "\n👉 Huele a **token de ClickUp vencido**: actualizá `CLICKUP_API_TOKEN`."
+        try:
+            await canal.send(
+                "⚠️ **La casa no pudo repartir los informes.**\n"
+                f"ClickUp devolvió un error:\n```{detalle}```{pista}"
+            )
+        except discord.DiscordException as e:
+            log.error("InformesCog: error enviando aviso de error: %s", e)
+
+    async def _avisar_semana(self, res: dict):
+        canal = await self._canal()
+        if not canal:
             return
 
+        prox = res.get("proximo_mes")
+        linea_prox = f"\n🗓️ Mensual de {prox['mes']} → {prox['url']}" if prox else ""
         mensaje = (
             f"🃏 **Arranca la semana, arranca la mano.**\n"
             f"Ya está el informe de la **{res['semana']}** listo para cargar 👇\n"
             f"📄 Semanal → {res['semanales']['url']}\n"
-            f"📅 Mensual de {res['mes']} → {res['mensuales']['url']}\n"
+            f"📅 Mensual de {res['mes']} → {res['mensuales']['url']}"
+            f"{linea_prox}\n"
             f"Dejá tus cartas sobre la mesa. 📊"
         )
         try:

@@ -300,33 +300,103 @@ async def generar_mes(client, year: int, month: int) -> dict:
 # --------------------------------------------------------------------------- #
 # Corrida de los lunes: link a la semana en curso, sin regenerar               #
 # --------------------------------------------------------------------------- #
+async def _asegurar_semana(client, doc_id: str, mes_node: dict, label: str,
+                           lun: dt.date, vie: dt.date, stats: dict) -> dict | None:
+    """Asegura la página de UNA semana (y sus 8 personas) dentro del mes."""
+    if mes_node is None:
+        return None
+    mes_node.setdefault("pages", [])
+    sem_node = await _ensure_page(
+        client, doc_id, mes_node["pages"], label, mes_node["id"], "", stats
+    )
+    sem_node.setdefault("pages", [])
+    for corto, completo in PERSONAS.items():
+        await _ensure_page(
+            client, doc_id, sem_node["pages"], corto, sem_node["id"],
+            plantilla_semanal(completo, lun, vie), stats,
+        )
+    return sem_node
+
+
+async def _asegurar_personas_mes(client, doc_id: str, mes_node: dict, mes: str,
+                                 year: int, stats: dict) -> None:
+    """Asegura las 8 páginas de persona del informe MENSUAL."""
+    if mes_node is None:
+        return
+    mes_node.setdefault("pages", [])
+    for corto, completo in PERSONAS.items():
+        await _ensure_page(
+            client, doc_id, mes_node["pages"], corto, mes_node["id"],
+            plantilla_mensual(completo, mes, year), stats,
+        )
+
+
 async def asegurar_mes(client, hoy: dt.date) -> dict:
     """
-    Devuelve los links para el aviso del lunes SIN regenerar si el mes ya existe.
+    Arma los links del aviso del lunes y AUTORREPARA lo que falte.
 
-    • semanal → DEEP LINK a la página de la semana en curso (según `hoy`).
-    • mensual → deep link a la página del mes.
-    Si el mes todavía no existe (primer lunes del mes), lo genera una sola vez
-    con `generar_mes` (idempotente) y recién ahí arma los links.
-    Fallback defensivo: si no encuentra la página puntual, cae a la del mes y,
-    en último caso, al Doc completo.
+    Cambios vs. la versión vieja (que dejó huecos en agosto 2026):
+
+    1. **Autorreparación de la semana en curso.** Antes alcanzaba con que
+       existiera la página del mes para no tocar nada más. Si una corrida se
+       cortaba a mitad (error de API, token vencido) la semana faltante NO se
+       creaba nunca y el aviso caía al link del mes. Ahora siempre se asegura
+       la página de la semana en curso + sus 8 personas.
+
+    2. **Mes siguiente adelantado.** Si la semana en curso cruza de mes
+       (ej. lun 31/8 → vie 4/9), se genera también el mes siguiente para que
+       el informe MENSUAL esté disponible desde el arranque de esa semana y no
+       recién el primer lunes del mes que viene.
+
+    Convención (sin cambios): una semana pertenece al mes de su LUNES. Por eso
+    "Semana del 31/8 al 4/9" vive bajo *Agosto*.
     """
     year, month = hoy.year, hoy.month
-    label, _lun, _vie = semana_actual(hoy)
+    label, lun, vie = semana_actual(hoy)
 
     sem_id, _ = await _ensure_doc(client, DOC_SEMANALES)
     men_id, _ = await _ensure_doc(client, DOC_MENSUALES)
 
-    sem_mes = _find_child(await client.get_doc_page_listing(TEAM_ID, sem_id), MESES[month])
-    men_mes = _find_child(await client.get_doc_page_listing(TEAM_ID, men_id), MESES[month])
+    async def _arbol():
+        return (
+            await client.get_doc_page_listing(TEAM_ID, sem_id),
+            await client.get_doc_page_listing(TEAM_ID, men_id),
+        )
 
-    if sem_mes and men_mes:
-        ya_existia, creadas = True, 0
-    else:
-        creadas = (await generar_mes(client, year, month))["total_creadas"]
-        ya_existia = False
-        sem_mes = _find_child(await client.get_doc_page_listing(TEAM_ID, sem_id), MESES[month])
-        men_mes = _find_child(await client.get_doc_page_listing(TEAM_ID, men_id), MESES[month])
+    sem_arbol, men_arbol = await _arbol()
+    sem_mes = _find_child(sem_arbol, MESES[month])
+    men_mes = _find_child(men_arbol, MESES[month])
+
+    stats = {"creadas": 0}
+
+    # El mes todavía no existe → generarlo entero una sola vez.
+    if not (sem_mes and men_mes):
+        stats["creadas"] += (await generar_mes(client, year, month))["total_creadas"]
+        sem_arbol, men_arbol = await _arbol()
+        sem_mes = _find_child(sem_arbol, MESES[month])
+        men_mes = _find_child(men_arbol, MESES[month])
+
+    # Autorreparación: la semana en curso puede faltar aunque el mes exista.
+    await _asegurar_semana(client, sem_id, sem_mes, label, lun, vie, stats)
+    await _asegurar_personas_mes(client, men_id, men_mes, MESES[month], year, stats)
+
+    # Semana que cruza de mes → adelantar el mes siguiente.
+    prox = None
+    if vie.month != lun.month:
+        prox_year, prox_month = vie.year, vie.month
+        prox_sem = _find_child(sem_arbol, MESES[prox_month])
+        prox_men = _find_child(men_arbol, MESES[prox_month])
+        if not (prox_sem and prox_men):
+            stats["creadas"] += (
+                await generar_mes(client, prox_year, prox_month)
+            )["total_creadas"]
+            sem_arbol, men_arbol = await _arbol()
+            prox_men = _find_child(men_arbol, MESES[prox_month])
+        prox = {
+            "mes": MESES[prox_month],
+            "year": prox_year,
+            "url": page_url(men_id, prox_men["id"]) if prox_men else doc_url(men_id),
+        }
 
     # Semanal → página de la semana en curso (fallback: página del mes → Doc).
     semana_node = _find_child(sem_mes.get("pages") if sem_mes else None, label)
@@ -341,12 +411,14 @@ async def asegurar_mes(client, hoy: dt.date) -> dict:
     men_url = page_url(men_id, men_mes["id"]) if men_mes else doc_url(men_id)
 
     log.info(
-        "asegurar_mes %s %s: ya_existia=%s, semana='%s' → %s",
-        MESES[month], year, ya_existia, label, sem_url,
+        "asegurar_mes %s %s: creadas=%d, semana='%s' -> %s (prox_mes=%s)",
+        MESES[month], year, stats["creadas"], label, sem_url,
+        prox["mes"] if prox else None,
     )
     return {
         "mes": MESES[month], "year": year, "semana": label,
-        "ya_existia": ya_existia, "total_creadas": creadas,
+        "ya_existia": stats["creadas"] == 0, "total_creadas": stats["creadas"],
         "semanales": {"url": sem_url, "doc_id": sem_id},
         "mensuales": {"url": men_url, "doc_id": men_id},
+        "proximo_mes": prox,
     }
