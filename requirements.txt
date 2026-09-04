@@ -4,12 +4,16 @@ aiosignal==1.4.0
 attrs==25.4.0
 discord.py==2.6.4
 frozenlist==1.8.0
-idna==3.11
+# Transitiva (aiohttp/yarl, y httpx2 via openai, que pide >=3.18). Sin pin exacto.
+idna>=3.18
 multidict==6.7.0
 propcache==0.4.1
 psycopg2-binary==2.9.11
 python-dotenv==1.2.1
-typing_extensions==4.15.0
+# Transitiva (aiohttp, discord.py, openai). NO clavarla en una version exacta:
+# anyio, que viene con openai, pide >=4.16.0 y el build del contenedor revienta
+# con ResolutionImpossible. Se deja el piso minimo y que pip resuelva.
+typing_extensions>=4.16.0
 yarl==1.22.0
 APScheduler==3.10.4
 pytz==2024.1
