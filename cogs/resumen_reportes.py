@@ -9,8 +9,8 @@ mediodía (`cogs/reportes.py`), así que a esa hora ya está todo cargado; y que
 antes del resumen de tareas de las 17:00 (`cogs/resumen.py`), que es otra cosa
 (números de ClickUp, no lo que escribió la gente).
 
-A mano: `/resumen-reportes` (admins). Por defecto responde en privado — sirve
-para leerlo antes de mandarlo al canal.
+A mano: `/resumen-reportes`, abierto a todo el equipo. Por defecto responde en
+privado — sirve para leerlo antes de mandarlo al canal.
 """
 import datetime as dt
 import logging
@@ -184,7 +184,7 @@ class ResumenReportesCog(commands.Cog):
     # ---------------------------------------------------------------- #
     @app_commands.command(
         name="resumen-reportes",
-        description="Resume con IA los reportes semanales de Mesa Alta (solo admins).",
+        description="Resume con IA los reportes semanales de Mesa Alta.",
     )
     @app_commands.describe(
         semanas_atras="0 = semana en curso (default), 1 = la anterior, etc.",
@@ -196,12 +196,6 @@ class ResumenReportesCog(commands.Cog):
         semanas_atras: app_commands.Range[int, 0, 8] = 0,
         publicar: bool = False,
     ):
-        if not (interaction.guild and interaction.user.guild_permissions.administrator):
-            await interaction.response.send_message(
-                "🔒 Solo un admin puede pedir el resumen de reportes.", ephemeral=True
-            )
-            return
-
         # Sin `publicar`, el resumen se ve solo para quien lo pidió: los reportes
         # traen "sensaciones de la semana" y conviene poder leerlo antes.
         await interaction.response.defer(ephemeral=not publicar, thinking=True)
