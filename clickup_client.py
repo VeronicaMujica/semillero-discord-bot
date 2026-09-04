@@ -256,6 +256,24 @@ class ClickUpClient:
         )
         return data if isinstance(data, list) else data.get("pages", [])
 
+    async def get_doc_page(
+        self,
+        team_id: str,
+        doc_id: str,
+        page_id: str,
+        content_format: str = "text/md",
+    ) -> dict:
+        """Contenido de UNA página del Doc (para leer lo que la gente cargó).
+
+        `pageListing` solo trae el árbol (id/nombre), sin texto: para el resumen
+        de los reportes hay que pedir cada página por separado.
+        """
+        return await self._request_v3(
+            "GET",
+            f"/workspaces/{team_id}/docs/{doc_id}/pages/{page_id}",
+            params={"content_format": content_format},
+        )
+
     async def create_doc_page(
         self,
         team_id: str,
