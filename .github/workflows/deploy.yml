@@ -15,12 +15,13 @@ jobs:
         uses: appleboy/ssh-action@v1
         env:
           CLICKUP_API_TOKEN: ${{ secrets.CLICKUP_API_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         with:
           host: "66.94.116.153"
           username: "semillero"
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: 22
-          envs: CLICKUP_API_TOKEN
+          envs: CLICKUP_API_TOKEN,OPENAI_API_KEY
           script: |
             set -e
             cd ~/apps/semillero-discord-bot
@@ -36,6 +37,16 @@ jobs:
               echo "CLICKUP_API_TOKEN sincronizado desde GitHub secrets"
             else
               echo "Sin secret CLICKUP_API_TOKEN: se mantiene el .env del servidor"
+            fi
+
+            # Idem para la API key de OpenAI (resumen de reportes semanales).
+            if [ -n "$OPENAI_API_KEY" ]; then
+              grep -v '^OPENAI_API_KEY=' .env > .env.tmp || true
+              echo "OPENAI_API_KEY=$OPENAI_API_KEY" >> .env.tmp
+              mv .env.tmp .env
+              echo "OPENAI_API_KEY sincronizado desde GitHub secrets"
+            else
+              echo "Sin secret OPENAI_API_KEY: se mantiene el .env del servidor"
             fi
 
             docker compose down || true
