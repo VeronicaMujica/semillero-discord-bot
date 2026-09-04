@@ -9,8 +9,8 @@ mediodía (`cogs/reportes.py`), así que a esa hora ya está todo cargado; y que
 antes del resumen de tareas de las 17:00 (`cogs/resumen.py`), que es otra cosa
 (números de ClickUp, no lo que escribió la gente).
 
-A mano: `/resumen-reportes` (admins). Por defecto responde en privado — sirve
-para leerlo antes de mandarlo al canal.
+A mano: `/resumen-reportes`, abierto a todo el equipo. Por defecto responde en
+privado — sirve para leerlo antes de mandarlo al canal.
 """
 import datetime as dt
 import logging
@@ -184,11 +184,11 @@ class ResumenReportesCog(commands.Cog):
     # ---------------------------------------------------------------- #
     @app_commands.command(
         name="resumen-reportes",
-        description="Resume con IA los reportes semanales de Mesa Alta (solo admins).",
+        description="Resume con IA los reportes semanales de Mesa Alta.",
     )
     @app_commands.describe(
         semanas_atras="0 = semana en curso (default), 1 = la anterior, etc.",
-        publicar="Mandarlo al canal del equipo en vez de mostrártelo solo a vos.",
+        publicar="Publicarlo en el canal de resúmenes en vez de mostrártelo solo a vos.",
     )
     async def resumen_reportes(
         self,
@@ -196,23 +196,37 @@ class ResumenReportesCog(commands.Cog):
         semanas_atras: app_commands.Range[int, 0, 8] = 0,
         publicar: bool = False,
     ):
-        if not (interaction.guild and interaction.user.guild_permissions.administrator):
-            await interaction.response.send_message(
-                "🔒 Solo un admin puede pedir el resumen de reportes.", ephemeral=True
-            )
-            return
-
-        # Sin `publicar`, el resumen se ve solo para quien lo pidió: los reportes
-        # traen "sensaciones de la semana" y conviene poder leerlo antes.
-        await interaction.response.defer(ephemeral=not publicar, thinking=True)
+        # Siempre ephemeral: si hay que publicar, lo mandamos nosotros al canal
+        # de destino. Los reportes traen "sensaciones de la semana", así que el
+        # resumen no puede terminar en un canal por accidente.
+        await interaction.response.defer(ephemeral=True, thinking=True)
         try:
             mensajes = await self._armar_resumen(semanas_atras)
         except (ClickUpAPIError, IAError) as e:
             await interaction.followup.send(f"❌ {e}")
             return
 
-        for m in mensajes:
-            await interaction.followup.send(m, ephemeral=not publicar)
+        if not publicar:
+            for m in mensajes:
+                await interaction.followup.send(m, ephemeral=True)
+            return
+
+        # `publicar` manda SIEMPRE al canal de los resúmenes, no al canal donde
+        # se tipeó el comando: si no, correrlo desde un canal general publicaba
+        # ahí las sensaciones de todo el equipo.
+        canal = self.bot.get_channel(self.channel_id)
+        if not canal:
+            await interaction.followup.send(
+                f"❌ No encuentro el canal de destino ({self.channel_id})."
+            )
+            return
+        try:
+            for m in mensajes:
+                await canal.send(m)
+        except discord.DiscordException as e:
+            await interaction.followup.send(f"❌ No pude publicar en {canal.mention}: {e}")
+            return
+        await interaction.followup.send(f"✅ Publicado en {canal.mention}.")
 
 
 async def setup(bot: commands.Bot):
