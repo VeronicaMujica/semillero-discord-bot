@@ -6,11 +6,11 @@ Estructura creada:
   Informes semanales   (Doc en el Space "MESA ALTA")
     └─ Agosto           (página mes)
         └─ Semana del 3 al 7   (página semana, Lun–Vie)
-            ├─ Vero  ├─ Rog ├─ Rochi ├─ Cami ├─ Sofi ├─ Ron ├─ Isa ├─ Nicky
+            ├─ Vero  ├─ Rog ├─ Rochi ├─ Sofi ├─ Ron ├─ Isa ├─ Nicky
 
   Informes mensuales
     └─ Agosto
-        ├─ Vero  ├─ Rog ├─ Rochi ├─ Cami ├─ Sofi ├─ Ron ├─ Isa ├─ Nicky
+        ├─ Vero  ├─ Rog ├─ Rochi ├─ Sofi ├─ Ron ├─ Isa ├─ Nicky
 
 Cada página de persona nace con una plantilla (semanal o mensual) ya
 personalizada con su nombre completo y la fecha de la semana/mes.
@@ -49,11 +49,13 @@ DOC_SEMANALES = "Informes semanales"
 DOC_MENSUALES = "Informes mensuales"
 
 # Nombre corto (título de la página) -> nombre completo (dentro del reporte).
+# Quien sale del equipo se BORRA de acá: el generador deja de crearle páginas.
+# Las que ya existen NO se tocan (el generador nunca borra) y quedan de archivo.
+#   - Cami (Camila Torres): fuera del equipo desde 2026-09-04.
 PERSONAS: dict[str, str] = {
     "Vero": "Verónica Mujica",
     "Rog": "Roggert Bernal",
     "Rochi": "Rocío Ojeda",
-    "Cami": "Camila Torres",
     "Sofi": "Sofía Lantieri",
     "Ron": "Ronald Vargas",
     "Isa": "Isabella Lantieri",
