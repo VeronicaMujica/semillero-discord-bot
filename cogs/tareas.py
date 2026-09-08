@@ -1,7 +1,9 @@
 import asyncio
 import logging
 import os
+import re
 import time
+import unicodedata
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -22,6 +24,62 @@ REFRESH_EVERY_SECONDS = 300
 PRIORITY_MAP = {"urgente": 1, "alta": 2, "normal": 3, "baja": 4}
 PRIORITY_COLOR = {"urgente": 0xE53935, "alta": 0xFB8C00, "normal": 0x1E88E5, "baja": 0x757575}
 PRIORITY_EMOJI = {"urgente": "🔴", "alta": "🟠", "normal": "🔵", "baja": "⚪"}
+
+# Emoji personal de cada responsable. Se antepone al título de la tarea en ClickUp
+# con el formato: "💸| Agregar emojis a las tareas".
+ASSIGNEE_EMOJI_BY_ID = {
+    156006388: "💸",  # Verónica Mujica (Vero)
+    120079719: "🎯",  # Sofía Lantieri (Sofi)
+    87374445: "🎰",   # Rocío Ojeda (Rochi)
+    81593142: "🧩",   # Roggert Bernal (Rogg)
+    81513581: "🎲",   # Isabella Lantieri (Isa)
+    81418149: "⚽",   # Ronald Vargas (Ro)
+    120019227: "⚽",  # Ronald Vargas (owner)
+}
+
+# Fallback por nombre: se matchea por palabra (sin acentos, en minúsculas).
+# Cubre a quienes todavía no tienen user ID confirmado (ej. Niky Chane) y a
+# cuentas duplicadas/nuevas que aparezcan con otro ID.
+ASSIGNEE_EMOJI_BY_NAME = (
+    (("veronica", "vero", "mujica"), "💸"),
+    (("sofia", "sofi"), "🎯"),
+    (("rocio", "rochi", "ojeda"), "🎰"),
+    (("roggert", "rogg", "bernal"), "🧩"),
+    (("isabella", "isa"), "🎲"),
+    (("ronald", "vargas"), "⚽"),
+    (("niky", "nicky", "chane"), "😊"),
+)
+
+# Sin emoji a propósito (decisión del equipo, 2026-09-07): Mery (87398967) y
+# Camila Torres (81593143). Sus tareas se crean con el título tal cual.
+
+
+def _normalize(text: str) -> str:
+    """minúsculas + sin acentos, para comparar nombres de forma tolerante."""
+    nfkd = unicodedata.normalize("NFKD", (text or "").lower())
+    return "".join(c for c in nfkd if not unicodedata.combining(c))
+
+
+def _assignee_emoji(user_id: str, user_name: str) -> str | None:
+    """Devuelve el emoji del responsable (por ID, con fallback por nombre)."""
+    if user_id and user_id.isdigit():
+        emoji = ASSIGNEE_EMOJI_BY_ID.get(int(user_id))
+        if emoji:
+            return emoji
+
+    tokens = {t for t in re.split(r"[^a-z0-9]+", _normalize(user_name)) if t}
+    for keywords, emoji in ASSIGNEE_EMOJI_BY_NAME:
+        if tokens & set(keywords):
+            return emoji
+    return None
+
+
+def _prefijar_titulo(titulo: str, emoji: str | None) -> str:
+    """Antepone el emoji del responsable al título: '💸| Título'."""
+    titulo = (titulo or "").strip()
+    if not emoji or titulo.startswith(emoji):
+        return titulo
+    return f"{emoji}| {titulo}"
 
 
 def _parse_date_ms(date_str: str | None) -> int | None:
@@ -203,10 +261,13 @@ class TareasCog(commands.Cog):
         user_id_str, user_name = _decode(responsable)
         priority_int = PRIORITY_MAP.get(prioridad.value) if prioridad else None
 
+        emoji_responsable = _assignee_emoji(user_id_str, user_name)
+        titulo_final = _prefijar_titulo(titulo, emoji_responsable)
+
         try:
             task = await self.clickup.create_task(
                 list_id=list_id,
-                name=titulo,
+                name=titulo_final,
                 description=descripcion or "",
                 assignees=[int(user_id_str)] if user_id_str.isdigit() else [],
                 priority=priority_int,
@@ -225,11 +286,15 @@ class TareasCog(commands.Cog):
 
         embed = discord.Embed(
             title="🃏 Tarea repartida",
-            description=f"### {task.get('name', titulo)}",
+            description=f"### {task.get('name', titulo_final)}",
             color=color,
             url=task.get("url"),
         )
-        embed.add_field(name="👤 Responsable", value=user_name, inline=True)
+        embed.add_field(
+            name="👤 Responsable",
+            value=f"{emoji_responsable} {user_name}" if emoji_responsable else user_name,
+            inline=True,
+        )
         embed.add_field(name="📋 Lista", value=list_name, inline=True)
 
         if prioridad:
